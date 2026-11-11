@@ -341,11 +341,16 @@ nav a .dot{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;bor
       <div><h2>ทะเบียนเวชภัณฑ์</h2><p class="sub" style="margin:0" id="itemsSub">เพิ่ม แก้ไข และทำป้าย QR สำหรับติดชั้นวางหรือกล่องยา</p></div>
       <div class="row">
         <button class="btn adm" id="bulkBtn">นำเข้าหลายรายการ</button>
-        <button class="btn" id="labelsBtn">ดาวน์โหลดป้าย QR</button>
+        <button class="btn" id="labelsBtn" disabled>ดาวน์โหลดป้าย QR</button>
         <button class="btn primary adm" id="addItemBtn">+ เพิ่มรายการ</button>
       </div>
     </div>
-    <div class="tblwrap"><table><thead><tr><th>รหัส</th><th>รายการ</th><th>หมวด</th><th>หน่วย</th><th>บาร์โค้ดผู้ผลิต</th><th class="n">ต้นทุน/หน่วย</th><th class="n">คงเหลือ</th><th></th></tr></thead><tbody id="itemBody"></tbody></table></div>
+    <div class="toolbar">
+      <div style="flex:1;min-width:200px"><label class="lbl" for="itemQ">ค้นหา</label><input id="itemQ" placeholder="ชื่อยา / รหัส / บาร์โค้ด" autocomplete="off"></div>
+      <div><span class="lbl">หมวด</span><div class="seg" id="itemCat"><button data-c="all" aria-pressed="true">ทั้งหมด</button><button data-c="drug" aria-pressed="false">ยา/เวชภัณฑ์</button><button data-c="supply" aria-pressed="false">พัสดุสิ้นเปลือง</button></div></div>
+    </div>
+    <div class="row" style="justify-content:space-between;margin-bottom:8px"><span class="note" id="itemCount"></span><span class="row"><span class="note" id="qrSelInfo">ติ๊กเลือกรายการที่ต้องการพิมพ์ป้าย QR</span><button class="btn ghost" id="qrClear" hidden>ล้างที่เลือก</button></span></div>
+    <div class="tblwrap"><table><thead><tr><th style="width:36px"><input type="checkbox" id="qrAll" title="เลือกทุกรายการที่แสดง" aria-label="เลือกทุกรายการที่แสดง"></th><th>รหัส</th><th>รายการ</th><th>หมวด</th><th>หน่วย</th><th>บาร์โค้ดผู้ผลิต</th><th class="n">ต้นทุน/หน่วย</th><th class="n">คงเหลือ</th><th></th></tr></thead><tbody id="itemBody"></tbody></table></div>
   </section>
 </main>
 </div>
@@ -723,7 +728,7 @@ $("#dlExpiry").onclick=()=>withExcel($("#dlExpiry"),"#expMsg",wb=>{
   styleHead(ws.addRow(["กลุ่ม","รายการ","รหัส","Lot","วันหมดอายุ","จำนวนวัน","จำนวนคงเหลือ","หน่วย"]));
   EXPG.forEach(x=>(B?B.g[x.k]:[]).forEach(r=>ws.addRow([x.t,r.it.name,r.it.code,r.lot,thDate(r.exp),r.days,r.qty,r.it.unit]).font=F14));
   ws.columns=[{width:22},{width:40},{width:11},{width:12},{width:13},{width:10},{width:13},{width:9}];
-  return `ยาใกล้หมดอายุ_${isoLocal(new Date())}.xlsx`});
+  return `expiry_${isoLocal(new Date())}.xlsx`});
 
 /* ---------- stock ---------- */
 let stockCat="all";
@@ -812,7 +817,9 @@ function renderReport(){
     return `<div class="form"><div class="org">${esc(CFG.ORG_LINE1)}<br>${esc(CFG.ORG_LINE2)}</div><div class="hd">รายการเบิกเวชภัณฑ์ ประจำเดือน ${monthLabel(S.month)}<br>ทะเบียนรถ ${esc(sheetLocLabel(L))}</div>
       <table><colgroup><col style="width:40px"><col style="width:220px">${'<col style="width:24px">'.repeat(31)}<col style="width:40px"></colgroup><thead><tr><th rowspan="2">ลำดับ</th><th rowspan="2">ยา/น้ำเชื้อ/อุปกรณ์</th><th colspan="31">วันที่</th><th rowspan="2">รวม</th></tr><tr>${Array.from({length:31},(_,d)=>`<th>${d+1}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table><div class="ft">${esc(CFG.FORM_CODE)}</div></div>`}).join('<div style="height:12px;background:var(--bg)"></div>');
 }
-function saveBlob(name,blob){const u=URL.createObjectURL(blob);const a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000)}
+// ชื่อไฟล์ดาวน์โหลดต้องเป็นอักษรอังกฤษ/ตัวเลข: Chrome ตัดชื่อภาษาไทยทิ้งแล้วตั้งชื่อว่า "download"
+const asciiLoc=id=>{const a=String(id).replace(/[^A-Za-z0-9-]/g,"");const i=S.locs.findIndex(l=>l.id===id);return a||("loc"+(i+1))};
+function saveBlob(name,blob){name=name.replace(/[^A-Za-z0-9._-]/g,"_");const u=URL.createObjectURL(blob);const a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000)}
 const FONT="TH SarabunPSK";
 function buildFormSheet(wb,logoId,L,rows){
   const [y,mm]=S.month.split("-").map(Number),dim=new Date(y,mm,0).getDate();
@@ -854,7 +861,7 @@ const beYM=()=>{const[y,mm]=S.month.split("-");return (+y+543)+"-"+mm};
 $("#dlReport").onclick=()=>withExcel($("#dlReport"),"#repMsg",wb=>{
   const showAll=$("#repAll").value==="all",v=$("#repLoc").value;let logoId=null;try{logoId=wb.addImage({base64:LOGO,extension:"jpeg"})}catch(e){}
   repLocs().forEach(L=>buildFormSheet(wb,logoId,L,reportRows(L,showAll)));
-  return `FM-LAU-10_${v==="__all"?"ทุกทะเบียน":v==="__supply"?"พัสดุ":v}_${beYM()}.xlsx`});
+  return `FM-LAU-10_${beYM()}_${v==="__all"?"all":v==="__supply"?"supply":asciiLoc(v)}.xlsx`});
 function styleHead(row){row.eachCell(c=>{c.font={name:FONT,size:14,bold:true};c.fill={type:"pattern",pattern:"solid",fgColor:{argb:"FFDCEBE6"}};c.border={bottom:{style:"thin"}}})}
 $("#dlSummary").onclick=()=>withExcel($("#dlSummary"),"#banner",wb=>{
   const A=aggregate();
@@ -893,7 +900,7 @@ $("#dlSummary").onclick=()=>withExcel($("#dlSummary"),"#banner",wb=>{
   active().sort((a,b)=>a.date.localeCompare(b.date)).forEach(t=>{const c=unitCost(t);w3.addRow([t.date,{out:"เบิกออก",in:"รับเข้า",adj:"ปรับยอด",disp:"ทิ้ง"}[t.type],t.itemName,t.qty,t.unit,t.loc?locName(t.loc):(t.type==="out"?"พัสดุสิ้นเปลือง":t.type==="disp"?t.reason:""),c,c==null?null:t.qty*c,t.note,t.by]).font=F14});
   w3.columns=[{width:12},{width:10},{width:36},{width:9},{width:9},{width:22},{width:12},{width:12},{width:28},{width:16}];
   w3.getColumn(7).numFmt=MONEY;w3.getColumn(8).numFmt=MONEY;
-  return `สรุปการใช้เวชภัณฑ์_${beYM()}.xlsx`});
+  return `summary_${beYM()}.xlsx`});
 $("#dlStock").onclick=()=>withExcel($("#dlStock"),"#banner",wb=>{
   const ws=wb.addWorksheet("คงคลัง");
   ws.addRow(["ยอดคงคลัง ณ วันที่ "+new Date().toLocaleDateString("th-TH",{dateStyle:"long"})]).font={name:FONT,size:16,bold:true};
@@ -904,14 +911,30 @@ $("#dlStock").onclick=()=>withExcel($("#dlStock"),"#banner",wb=>{
   const last=ws.rowCount,tot=ws.addRow(["","มูลค่าคงเหลือรวม","","","","",{formula:`SUM(G${first}:G${last})`,result:stockValue()}]);tot.font={name:FONT,size:14,bold:true};
   ws.columns=[{width:12},{width:38},{width:16},{width:10},{width:10},{width:13},{width:15},{width:11}];
   ws.getColumn(6).numFmt="#,##0.00";ws.getColumn(7).numFmt="#,##0.00";
-  return `คงคลังเวชภัณฑ์_${todayStr()}.xlsx`});
+  return `stock_${todayStr()}.xlsx`});
 
 /* ---------- items ---------- */
-function renderItems(){
-  const list=sortedItems("all");
-  $("#itemBody").innerHTML=list.length?list.map(i=>`<tr><td class="code">${esc(i.code)}</td><td>${esc(i.name)}</td><td><span class="tag ${i.cat}">${CAT[i.cat]}</span></td><td>${esc(i.unit)}</td><td class="code">${esc(i.barcode||"–")}</td><td class="n">${baht(i.cost)}</td><td class="n">${fmt(i.stock)}</td><td><button class="btn ghost" data-edit="${esc(i.id)}">${isAdmin()?"แก้ไข / QR":"QR"}</button></td></tr>`).join("")
-    :`<tr><td colspan="8" class="emptyline">ยังไม่มีรายการเวชภัณฑ์${isAdmin()?'<br><span class="note">กด "+ เพิ่มรายการ" หรือ "นำเข้าหลายรายการ" เพื่อวางรายชื่อจาก Excel</span>':"<br>ให้ผู้ดูแลระบบเพิ่มรายการ"}</td></tr>`;
+let itemCat="all";const qrSel=new Set();
+function itemList(){const q=$("#itemQ").value.trim().toLowerCase();return sortedItems(itemCat).filter(i=>!q||(i.name+" "+i.code+" "+(i.barcode||"")).toLowerCase().includes(q))}
+function updateQrUi(){
+  [...qrSel].forEach(id=>{if(!S.items.has(id))qrSel.delete(id)});
+  const n=qrSel.size,vis=itemList(),allOn=vis.length&&vis.every(i=>qrSel.has(i.id));
+  $("#labelsBtn").disabled=!n;$("#labelsBtn").textContent=n?"ดาวน์โหลดป้าย QR ("+n+" รายการ)":"ดาวน์โหลดป้าย QR";
+  $("#qrSelInfo").textContent=n?"เลือกไว้ "+n+" รายการ":"ติ๊กเลือกรายการที่ต้องการพิมพ์ป้าย QR";$("#qrClear").hidden=!n;
+  $("#qrAll").checked=!!allOn;$("#qrAll").indeterminate=!allOn&&vis.some(i=>qrSel.has(i.id));
 }
+function renderItems(){
+  const list=itemList(),total=S.items.size;
+  $("#itemCount").textContent=list.length===total?"ทั้งหมด "+total+" รายการ":"แสดง "+list.length+" จาก "+total+" รายการ";
+  $("#itemBody").innerHTML=list.length?list.map(i=>`<tr><td><input type="checkbox" data-qr="${esc(i.id)}" ${qrSel.has(i.id)?"checked":""} aria-label="เลือก ${esc(i.name)}"></td><td class="code">${esc(i.code)}</td><td>${esc(i.name)}</td><td><span class="tag ${i.cat}">${CAT[i.cat]}</span></td><td>${esc(i.unit)}</td><td class="code">${esc(i.barcode||"–")}</td><td class="n">${baht(i.cost)}</td><td class="n">${fmt(i.stock)}</td><td><button class="btn ghost" data-edit="${esc(i.id)}">${isAdmin()?"แก้ไข / QR":"QR"}</button></td></tr>`).join("")
+    :total?`<tr><td colspan="9" class="emptyline">ไม่พบรายการที่ค้นหา</td></tr>`:`<tr><td colspan="9" class="emptyline">ยังไม่มีรายการเวชภัณฑ์${isAdmin()?'<br><span class="note">กด "+ เพิ่มรายการ" หรือ "นำเข้าหลายรายการ" เพื่อวางรายชื่อจาก Excel</span>':"<br>ให้ผู้ดูแลระบบเพิ่มรายการ"}</td></tr>`;
+  updateQrUi();
+}
+$("#itemQ").addEventListener("input",renderItems);
+$("#itemCat").addEventListener("click",e=>{const b=e.target.closest("[data-c]");if(!b)return;itemCat=b.dataset.c;$$("#itemCat button").forEach(x=>x.setAttribute("aria-pressed",x===b));renderItems()});
+$("#itemBody").addEventListener("change",e=>{const c=e.target.closest("[data-qr]");if(!c)return;c.checked?qrSel.add(c.dataset.qr):qrSel.delete(c.dataset.qr);updateQrUi()});
+$("#qrAll").addEventListener("change",e=>{itemList().forEach(i=>e.target.checked?qrSel.add(i.id):qrSel.delete(i.id));renderItems()});
+$("#qrClear").onclick=()=>{qrSel.clear();renderItems()};
 let editId=null,delArm=false;
 function drawQR(canvas,text){
   const ctx=canvas.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,canvas.width,canvas.height);if(!window.qrcode)return;
@@ -965,7 +988,7 @@ $("#bulkSave").onclick=async()=>{
   $("#bulkSave").disabled=false;
 };
 $("#labelsBtn").onclick=async()=>{
-  const list=sortedItems("all");if(!list.length)return showBanner("ยังไม่มีรายการให้ทำป้าย");
+  const list=sortedItems("all").filter(i=>qrSel.has(i.id));if(!list.length)return showBanner("ติ๊กเลือกรายการที่ต้องการทำป้าย QR ก่อน");
   try{await loadScript(LIB.qr,"qrcode")}catch(e){return showBanner(esc(e.message),"err")}
   const cols=3,W=800,H=360,rowsPer=8,pages=Math.ceil(list.length/(cols*rowsPer));
   for(let p=0;p<pages;p++){
@@ -980,9 +1003,9 @@ $("#labelsBtn").onclick=async()=>{
       if(ly<=y+220)ctx.fillText(line,x+345,ly);
       ctx.font="24px 'IBM Plex Sans Thai',sans-serif";ctx.fillStyle="#555";ctx.fillText(CAT[it.cat]+(it.unit?" · "+it.unit:""),x+345,y+270);
       ctx.font="500 30px 'IBM Plex Mono',monospace";ctx.fillStyle="#000";ctx.fillText(it.code,x+345,y+312)});
-    const blob=await new Promise(r=>cv.toBlob(r,"image/png"));saveBlob(`ป้าย-QR-${p+1}.png`,blob);
+    const blob=await new Promise(r=>cv.toBlob(r,"image/png"));saveBlob(`QR-labels_${todayStr()}_${p+1}.png`,blob);
   }
-  showBanner("ดาวน์โหลดป้าย QR "+pages+" ไฟล์ (ไฟล์ละไม่เกิน 24 ป้าย) พิมพ์บนสติกเกอร์ A4 แล้วตัดตามเส้นประ","ok");
+  showBanner("ดาวน์โหลดป้าย QR "+list.length+" รายการ ("+pages+" ไฟล์ ไฟล์ละไม่เกิน 24 ป้าย) พิมพ์บนสติกเกอร์ A4 แล้วตัดตามเส้นประ","ok");
 };
 
 /* ---------- render / boot ---------- */
