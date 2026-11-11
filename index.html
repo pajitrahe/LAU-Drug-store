@@ -251,6 +251,11 @@ nav a .dot{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;bor
           <span class="lbl">เหตุผลที่ทิ้ง</span>
           <div class="chips" id="reasonChips"><button type="button" class="chip" data-r="หมดอายุ" aria-pressed="false">หมดอายุ</button><button type="button" class="chip" data-r="เสื่อมสภาพ" aria-pressed="false">เสื่อมสภาพ</button></div>
           <p class="note" style="margin:6px 0 0" id="dispNote"></p>
+          <div class="f2" style="margin-top:12px">
+            <div><span class="lbl">แนวทางการจัดการ</span><div class="seg" id="manageSeg"><button type="button" data-m="ทิ้ง" aria-pressed="true">ทิ้ง</button><button type="button" data-m="ใช้ต่อ" aria-pressed="false">ใช้ต่อ</button></div></div>
+            <div><span class="lbl">ปริมาณที่เหลือในขวด (ถ้ามี)</span><div class="chips" id="remainChips"><button type="button" class="chip" data-b="<25%" aria-pressed="false">&lt;25%</button><button type="button" class="chip" data-b="25-50%" aria-pressed="false">25–50%</button><button type="button" class="chip" data-b="50-75%" aria-pressed="false">50–75%</button><button type="button" class="chip" data-b=">75%" aria-pressed="false">&gt;75%</button></div></div>
+          </div>
+          <div style="margin-top:12px"><span class="lbl">สถานที่ใช้งาน (ถ้ามี)</span><div class="chips" id="dispLocChips"></div></div>
         </div>
         <div id="locBlock">
           <span class="lbl">สถานที่ใช้งาน (ใช้กับยา/เวชภัณฑ์)</span>
@@ -333,6 +338,11 @@ nav a .dot{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;bor
       <div style="margin-left:auto"><span class="lbl">&nbsp;</span><button class="btn primary" id="dlReport">ดาวน์โหลด Excel</button></div>
     </div>
     <div id="repMsg" hidden></div>
+    <div class="panel" style="margin-bottom:14px;display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+      <div style="flex:1;min-width:220px"><h3>รายงานอื่นของเดือนที่เลือก</h3><p class="note" style="margin:2px 0 0">รูปแบบตามแบบฟอร์มของแผนก (Excel)</p></div>
+      <button class="btn" id="dlExpLog">บันทึกยาหมดอายุ (.xlsx)</button>
+      <button class="btn" id="dlCount">รายงานการตรวจนับ + ใบตรวจนับ (.xlsx)</button>
+    </div>
     <div class="tblwrap" id="repPreview"></div>
   </section>
 
@@ -341,6 +351,7 @@ nav a .dot{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;bor
       <div><h2>ทะเบียนเวชภัณฑ์</h2><p class="sub" style="margin:0" id="itemsSub">เพิ่ม แก้ไข และทำป้าย QR สำหรับติดชั้นวางหรือกล่องยา</p></div>
       <div class="row">
         <button class="btn adm" id="bulkBtn">นำเข้าหลายรายการ</button>
+        <button class="btn" id="dlRegister">ดาวน์โหลดทะเบียนยา (.xlsx)</button>
         <button class="btn" id="labelsBtn" disabled>ดาวน์โหลดป้าย QR</button>
         <button class="btn primary adm" id="addItemBtn">+ เพิ่มรายการ</button>
       </div>
@@ -521,12 +532,24 @@ function setMode(m){
   $("#modeName").textContent=MODE[m].title;$("#modeHint").textContent=HINT[m];$("#modeIcon").innerHTML=m==="out"?ICON.out:m==="in"?ICON.in:ICON.adj;
   $("#adjSeg").hidden=!(m==="count"||m==="dispose");
   $("#histTitle").textContent=m==="out"?"เบิกออกเดือนนี้":m==="in"?"รับเข้าเดือนนี้":"ตรวจนับ/ทิ้งเดือนนี้";
-  $("#formTitle").textContent=MODE[m].title;$("#submit").textContent=MODE[m].btn;hideMsg("#formMsg");
+  $("#formTitle").textContent=MODE[m].title;$("#submit").textContent=MODE[m].btn;hideMsg("#formMsg");if(S.user)renderDispExtras();
   $("#locBlock").hidden=m!=="out";$("#reasonBlock").hidden=m!=="dispose";$("#noteLbl").textContent=MODE[m].note;$("#note").placeholder=MODE[m].ph;
   $("#dispNote").textContent="ตัดออกจากยอดคงคลัง ไม่นับเป็นการใช้งาน มูลค่าคิดที่ราคา"+MARKUP_LBL;
   renderLines();if(S.user)renderHist();
 }
 $("#mCount").onclick=()=>setMode("count");$("#mDisp").onclick=()=>setMode("dispose");
+S.manage="ทิ้ง";S.remain="";S.dloc="";
+function renderDispExtras(){
+  $$("#manageSeg button").forEach(x=>x.setAttribute("aria-pressed",x.dataset.m===S.manage));
+  $$("#remainChips .chip").forEach(x=>x.setAttribute("aria-pressed",x.dataset.b===S.remain));
+  $("#dispLocChips").innerHTML=S.locs.map(l=>`<button type="button" class="chip" data-dl="${esc(l.id)}" aria-pressed="${S.dloc===l.id}">${esc(l.label)}</button>`).join("");
+  if(S.mode==="dispose"){$("#submit").textContent=S.manage==="ใช้ต่อ"?"บันทึกการใช้ต่อ":"บันทึกการทิ้ง";
+    $("#noteLbl").textContent=S.manage==="ใช้ต่อ"?"ใช้ต่อที่ไหน เมื่อไร เพราะอะไร (ต้องระบุ)":"Lot / วันหมดอายุ / หมายเหตุ";
+    $("#dispNote").textContent=S.manage==="ใช้ต่อ"?"ใช้ต่อ: บันทึกลงสมุดยาหมดอายุ ไม่ตัดยอดคงคลัง":"ตัดยอดออกจากคลัง ไม่นับเป็นการใช้งาน มูลค่าคิดที่ราคา"+MARKUP_LBL}
+}
+$("#manageSeg").addEventListener("click",e=>{const b=e.target.closest("[data-m]");if(!b)return;S.manage=b.dataset.m;renderDispExtras();renderLines();hideMsg("#formMsg")});
+$("#remainChips").addEventListener("click",e=>{const b=e.target.closest("[data-b]");if(!b)return;S.remain=S.remain===b.dataset.b?"":b.dataset.b;renderDispExtras()});
+$("#dispLocChips").addEventListener("click",e=>{const b=e.target.closest("[data-dl]");if(!b)return;S.dloc=S.dloc===b.dataset.dl?"":b.dataset.dl;renderDispExtras()});
 $("#reasonChips").addEventListener("click",e=>{const b=e.target.closest("[data-r]");if(!b)return;S.reason=b.dataset.r;$$("#reasonChips .chip").forEach(x=>x.setAttribute("aria-pressed",x===b));hideMsg("#formMsg")});
 function findByCode(code){
   const c=String(code).trim().toLowerCase();if(!c)return null;
@@ -565,7 +588,7 @@ function renderLines(){
   el.innerHTML=S.lines.map((l,k)=>{const it=S.items.get(l.id);if(!it)return"";
     const short=(S.mode==="out"||S.mode==="dispose")&&l.qty>(it.stock||0),diff=Math.round((l.qty-(it.stock||0))*1e4)/1e4;
     const info=S.mode==="count"?`<span class="code">ในระบบ ${fmt(it.stock)} → นับได้ ${fmt(l.qty)} ${esc(it.unit)}</span> ${diff?`<span class="tag ${diff>0?"in":"out"}">${diff>0?"+":"−"}${fmt(Math.abs(diff))}</span>`:'<span class="note">ตรงกัน</span>'}`
-      :`<span class="code">คงเหลือ ${fmt(it.stock)} ${esc(it.unit)}</span>${short?' <span class="tag out">ไม่พอ</span>':""}${S.mode==="dispose"?` <span class="code">มูลค่า ${it.cost==null?"– (ยังไม่มีราคา)":baht(l.qty*dispCost(it.cost))+" บาท"}</span>`:""}`;
+      :`<span class="code">คงเหลือ ${fmt(it.stock)} ${esc(it.unit)}</span>${short?' <span class="tag out">ไม่พอ</span>':""}${S.mode==="dispose"&&S.manage!=="ใช้ต่อ"?` <span class="code">มูลค่า ${it.cost==null?"– (ยังไม่มีราคา)":baht(l.qty*dispCost(it.cost))+" บาท"}</span>`:""}`;
     const lotrow=S.mode==="in"?`<div class="lotrow"><input type="date" data-exp="${k}" value="${esc(l.exp||"")}" aria-label="วันหมดอายุ" title="วันหมดอายุ (EXP)"><input class="lot" data-lot="${k}" value="${esc(l.lot||"")}" placeholder="Lot" aria-label="Lot"></div>`:"";
     return `<div class="line"><div class="nm"><b>${esc(it.name)}</b><span class="tag ${it.cat}">${CAT[it.cat]}</span> ${info}${lotrow}</div>
     <div class="qty"><button type="button" data-k="${k}" data-d="-1" aria-label="ลด">−</button><input id="q${k}" data-k="${k}" type="number" min="0" step="any" inputmode="decimal" value="${l.qty}"><button type="button" data-k="${k}" data-d="1" aria-label="เพิ่ม">+</button></div>
@@ -590,15 +613,17 @@ $("#submit").onclick=async()=>{
   const out=S.mode==="out";
   if(out&&lines.some(l=>S.items.get(l.id).cat==="drug")&&!S.loc)return flash("#formMsg","กรุณาเลือกทะเบียนรถหรือสถานที่ใช้งานสำหรับรายการยา","err");
   if(S.mode==="dispose"&&!S.reason)return flash("#formMsg","กรุณาเลือกเหตุผล: หมดอายุ หรือ เสื่อมสภาพ","err");
+  if(S.mode==="dispose"&&S.manage==="ใช้ต่อ"&&!$("#note").value.trim())return flash("#formMsg","กรุณาระบุสถานที่ เวลา และเหตุผลที่ใช้ต่อ ในช่องหมายเหตุ","err");
   if(S.mode==="in"){const miss=lines.filter(l=>!l.exp&&S.items.get(l.id).cat==="drug");
     if(miss.length&&!S.expWarned){S.expWarned=true;return flash("#formMsg","ยา "+miss.length+" รายการยังไม่ได้ใส่วันหมดอายุ (EXP) จะไม่แสดงในหน้ายาใกล้หมดอายุ กดบันทึกอีกครั้งถ้าต้องการบันทึกโดยไม่ใส่","warn")}}
   S.expWarned=false;
   busy=true;$("#submit").disabled=true;flash("#formMsg","กำลังบันทึก…","warn");
   try{
-    const j=await api("submit",{mode:S.mode,date,loc:S.loc,reason:S.reason,note:$("#note").value.trim(),lines:lines.map(l=>({itemId:l.id,qty:l.qty,exp:l.exp||"",lot:l.lot||""}))});
+    const j=await api("submit",{mode:S.mode,date,loc:S.mode==="dispose"?S.dloc:S.loc,reason:S.reason,manage:S.manage,remain:S.remain,note:$("#note").value.trim(),lines:lines.map(l=>({itemId:l.id,qty:l.qty,exp:l.exp||"",lot:l.lot||""}))});
     setItems(j.items);S.lines=[];$("#note").value="";
     loadExpiry(true);
-    flash("#formMsg",(S.mode==="count"?(j.saved?"ปรับยอด "+j.saved+" รายการแล้ว":"ยอดนับตรงกับระบบทุกรายการ ไม่มีการปรับ"):(out?"บันทึกการเบิก ":S.mode==="dispose"?"บันทึกการทิ้ง ":"บันทึกรับเข้า ")+j.saved+" รายการแล้ว")+(date.slice(0,7)!==S.month?" (วันที่อยู่คนละเดือนกับที่เลือกด้านบน)":""),"ok");
+    const dispMsg=S.manage==="ใช้ต่อ"?"บันทึกการใช้ต่อ ":"บันทึกการทิ้ง ";if(S.mode==="dispose"){S.remain="";S.dloc="";renderDispExtras()}
+    flash("#formMsg",(S.mode==="count"?"บันทึกผลตรวจนับ "+(j.recorded??j.saved)+" รายการแล้ว ("+(j.saved?"ปรับยอด "+j.saved+" รายการ":"ตรงกับระบบทุกรายการ")+")":(out?"บันทึกการเบิก ":S.mode==="dispose"?dispMsg:"บันทึกรับเข้า ")+j.saved+" รายการแล้ว")+(date.slice(0,7)!==S.month?" (วันที่อยู่คนละเดือนกับที่เลือกด้านบน)":""),"ok");
     renderAll();await loadTxns();
   }catch(e){flash("#formMsg",e.message,"err")}
   busy=false;$("#submit").disabled=false;
@@ -607,18 +632,18 @@ $("#submit").onclick=async()=>{
 /* history */
 let pendingDel=null;
 function renderHist(){
-  const want=S.mode==="out"?["out"]:S.mode==="in"?["in"]:["adj","disp"];
+  const want=S.mode==="out"?["out"]:S.mode==="in"?["in"]:["adj","disp","keep"];
   const list=S.txns.filter(t=>want.includes(t.type)).sort((a,b)=>(b.date+b.at).localeCompare(a.date+a.at));
   $("#histCount").textContent=monthLabel(S.month)+" · "+list.filter(t=>!t.cancelled).length+" รายการ";
   if(!list.length){$("#hist").innerHTML=`<div class="emptyline">ยังไม่มีรายการในเดือนนี้</div>`;return}
   $("#hist").innerHTML=list.slice(0,100).map(t=>{
-    const sub=[t.type==="out"?(t.loc?locName(t.loc):"พัสดุสิ้นเปลือง"):t.type==="adj"?"ปรับยอด":t.type==="disp"?"ทิ้ง: "+(t.reason||"-"):"รับเข้า",t.lot?"Lot "+t.lot:"",t.exp?"EXP "+thDate(t.exp):"",t.note,t.by].filter(Boolean).join(" · ");
+    const sub=[t.type==="out"?(t.loc?locName(t.loc):"พัสดุสิ้นเปลือง"):t.type==="adj"?(t.counted!=null?"ตรวจนับ: ในระบบ "+fmt(t.sys)+" นับได้ "+fmt(t.counted):"ปรับยอด"):t.type==="disp"?"ทิ้ง: "+(t.reason||"-"):t.type==="keep"?"ใช้ต่อ ("+(t.reason||"หมดอายุ")+")":"รับเข้า",t.remain?"เหลือ "+t.remain:"",(t.type==="disp"||t.type==="keep")&&t.loc?locName(t.loc):"",t.lot?"Lot "+t.lot:"",t.exp?"EXP "+thDate(t.exp):"",t.note,t.by].filter(Boolean).join(" · ");
     const neg=t.type==="out"||t.type==="disp"||(t.type==="adj"&&t.qty<0);
     const can=!t.cancelled&&(isAdmin()||t.by===S.user.name);
     const act=t.cancelled?'<span class="note">ยกเลิกแล้ว</span>':!can?"":pendingDel===t.id
       ?`<span class="row"><button class="btn danger" data-del="${esc(t.id)}">ยืนยัน</button><button class="btn ghost" data-nodel>ไม่</button></span>`
       :`<button class="btn ghost" data-ask="${esc(t.id)}" title="ยกเลิกรายการนี้และคืนยอดคงคลัง">ยกเลิก</button>`;
-    return `<div class="h${t.cancelled?" x":""}"><span class="d">${t.date.slice(8)}/${t.date.slice(5,7)}</span><div class="t">${esc(t.itemName)} <span class="tag ${neg?"out":"in"}">${neg?"−":"+"}${fmt(Math.abs(t.qty))} ${esc(t.unit)}</span><small>${esc(sub)}</small></div>${act}</div>`}).join("")
+    return `<div class="h${t.cancelled?" x":""}"><span class="d">${t.date.slice(8)}/${t.date.slice(5,7)}</span><div class="t">${esc(t.itemName)} ${t.type==="keep"?`<span class="tag low">ใช้ต่อ ${fmt(t.qty)} ${esc(t.unit)}</span>`:t.type==="adj"&&t.qty===0?'<span class="tag in">ตรง</span>':`<span class="tag ${neg?"out":"in"}">${neg?"−":"+"}${fmt(Math.abs(t.qty))} ${esc(t.unit)}</span>`}<small>${esc(sub)}</small></div>${act}</div>`}).join("")
     +(list.length>100?`<p class="note">แสดง 100 รายการล่าสุด ดูทั้งหมดใน Google Sheet แผ่น "ประวัติเบิกรับ"</p>`:"");
 }
 $("#hist").addEventListener("click",async e=>{
@@ -751,7 +776,7 @@ function aggregate(){
   const drug=new Map(),sup=new Map(),inn=new Map(),disp=[],locVal={},locCnt={},noCost=new Set(),dispBy={};let supVal=0,inVal=0,dispVal=0;
   const add=(m,t,v)=>{const r=m.get(t.itemId)||{name:t.itemName,unit:t.unit,qty:0,val:0,by:{},vby:{}};r.qty+=t.qty;r.val+=v;m.set(t.itemId,r);return r};
   for(const t of active()){
-    if(t.type==="adj")continue;
+    if(t.type==="adj"||t.type==="keep")continue;
     if(t.type==="disp"){const c=unitCost(t),p=dispCost(c),v=p==null?0:t.qty*p;if(c==null)noCost.add(t.itemName);disp.push({t,c,p,v});dispVal+=v;dispBy[t.reason]=(dispBy[t.reason]||0)+v;continue}
     const c=unitCost(t);if(c==null)noCost.add(t.itemName);const v=c==null?0:t.qty*c;
     if(t.type==="in"){add(inn,t,v);inVal+=v;continue}
@@ -897,7 +922,7 @@ $("#dlSummary").onclick=()=>withExcel($("#dlSummary"),"#banner",wb=>{
   w4.columns=[{width:12},{width:36},{width:12},{width:9},{width:9},{width:12},{width:12},{width:14},{width:26},{width:16}];
   [6,7,8].forEach(c=>w4.getColumn(c).numFmt=MONEY);
   const w3=wb.addWorksheet("รายการทั้งหมด");styleHead(w3.addRow(["วันที่","ประเภท","รายการ","จำนวน","หน่วย","ทะเบียน/สถานที่","ต้นทุน/หน่วย","มูลค่า","หมายเหตุ","ผู้บันทึก"]));
-  active().sort((a,b)=>a.date.localeCompare(b.date)).forEach(t=>{const c=unitCost(t);w3.addRow([t.date,{out:"เบิกออก",in:"รับเข้า",adj:"ปรับยอด",disp:"ทิ้ง"}[t.type],t.itemName,t.qty,t.unit,t.loc?locName(t.loc):(t.type==="out"?"พัสดุสิ้นเปลือง":t.type==="disp"?t.reason:""),c,c==null?null:t.qty*c,t.note,t.by]).font=F14});
+  active().sort((a,b)=>a.date.localeCompare(b.date)).forEach(t=>{const c=unitCost(t);w3.addRow([t.date,{out:"เบิกออก",in:"รับเข้า",adj:"ปรับยอด",disp:"ทิ้ง",keep:"ใช้ต่อ (หมดอายุ)"}[t.type],t.itemName,t.qty,t.unit,t.loc?locName(t.loc):(t.type==="out"?"พัสดุสิ้นเปลือง":t.type==="disp"?t.reason:""),c,c==null?null:t.qty*c,t.note,t.by]).font=F14});
   w3.columns=[{width:12},{width:10},{width:36},{width:9},{width:9},{width:22},{width:12},{width:12},{width:28},{width:16}];
   w3.getColumn(7).numFmt=MONEY;w3.getColumn(8).numFmt=MONEY;
   return `summary_${beYM()}.xlsx`});
@@ -1007,6 +1032,185 @@ $("#labelsBtn").onclick=async()=>{
   }
   showBanner("ดาวน์โหลดป้าย QR "+list.length+" รายการ ("+pages+" ไฟล์ ไฟล์ละไม่เกิน 24 ป้าย) พิมพ์บนสติกเกอร์ A4 แล้วตัดตามเส้นประ","ok");
 };
+
+/* ---------- ตัวสร้างไฟล์ Excel (.xlsx) ในตัว: ไม่ต้องโหลดไลบรารีจากอินเทอร์เน็ต ---------- */
+const XLSX_MINI=(()=>{
+  const enc=new TextEncoder();
+  const T=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+  const crc32=b=>{let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=T[(c^b[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0};
+  const X=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g,"");
+  const col=n=>{let s="";n++;while(n){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26)}return s};
+  const ref=(r,c)=>col(c)+(r+1);
+  function zip(files){ // stored (no compression) zip
+    const parts=[],central=[];let off=0;
+    for(const f of files){const nm=enc.encode(f.name),d=enc.encode(f.data),crc=crc32(d);
+      const h=new DataView(new ArrayBuffer(30));h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0x0800,true);h.setUint16(12,0x21,true);
+      h.setUint32(14,crc,true);h.setUint32(18,d.length,true);h.setUint32(22,d.length,true);h.setUint16(26,nm.length,true);
+      parts.push(new Uint8Array(h.buffer),nm,d);
+      const c=new DataView(new ArrayBuffer(46));c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(8,0x0800,true);c.setUint16(14,0x21,true);
+      c.setUint32(16,crc,true);c.setUint32(20,d.length,true);c.setUint32(24,d.length,true);c.setUint16(28,nm.length,true);c.setUint32(42,off,true);
+      central.push(new Uint8Array(c.buffer),nm);off+=30+nm.length+d.length}
+    const cs=central.reduce((a,x)=>a+x.length,0),e=new DataView(new ArrayBuffer(22));
+    e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,cs,true);e.setUint32(16,off,true);
+    return new Blob([...parts,...central,new Uint8Array(e.buffer)],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})}
+  class Sheet{
+    constructor(name){this.name=name.replace(/[\\\/\?\*\[\]:]/g," ").slice(0,31);this.cells={};this.rowH={};this.cols=[];this.merges=[];this.landscape=true;
+      this.margins={l:0.3,r:0.3,t:0.4,b:0.45};this.freeze=0;this.titleRows=null;this.footer=""}
+    set(r,c,v,st){(this.cells[r]||(this.cells[r]={}))[c]={v,st};return this}
+    merge(r1,c1,r2,c2,v,st){for(let r=r1;r<=r2;r++)for(let c=c1;c<=c2;c++)this.set(r,c,r===r1&&c===c1?v:"",st);this.merges.push(ref(r1,c1)+":"+ref(r2,c2))}
+    height(r,h){this.rowH[r]=h}}
+  class Book{
+    constructor(){this.sheets=[];this.fonts=[];this.fills=[];this.borders=[];this.xfs=[];this.fmts=[];this.k={};this.style({})}
+    sheet(n){const s=new Sheet(n);this.sheets.push(s);return s}
+    _i(a,x){let i=a.indexOf(x);if(i<0){a.push(x);i=a.length-1}return i}
+    style(st){
+      const key=JSON.stringify(st);if(key in this.k)return this.k[key];
+      const f=st.font||{};
+      const fi=this._i(this.fonts,`<font>${f.b?"<b/>":""}${f.i?"<i/>":""}<sz val="${f.sz||14}"/><color rgb="FF${f.color||"000000"}"/><name val="${X(f.name||"Angsana New")}"/><family val="2"/></font>`);
+      const fl=st.fill?this._i(this.fills,`<fill><patternFill patternType="solid"><fgColor rgb="FF${st.fill}"/><bgColor indexed="64"/></patternFill></fill>`)+2:0;
+      const b=st.border||{},side=(n,v)=>v?`<${n} style="${v}"><color auto="1"/></${n}>`:`<${n}/>`;
+      const bi=this._i(this.borders,`<border>${side("left",b.l)}${side("right",b.r)}${side("top",b.t)}${side("bottom",b.b)}<diagonal/></border>`);
+      const nf=st.numFmt?164+this._i(this.fmts,st.numFmt):0,a=st.align||{};
+      const al=`<alignment${a.h?` horizontal="${a.h}"`:""} vertical="${a.v||"center"}"${a.wrap?' wrapText="1"':""}${a.shrink?' shrinkToFit="1"':""}/>`;
+      return this.k[key]=this._i(this.xfs,`<xf numFmtId="${nf}" fontId="${fi}" fillId="${fl}" borderId="${bi}" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"${fl?' applyFill="1"':""}${nf?' applyNumberFormat="1"':""}>${al}</xf>`)}
+    sheetXml(s){
+      const rows=[...new Set([...Object.keys(s.cells),...Object.keys(s.rowH)].map(Number))].sort((a,b)=>a-b);let mr=0,mc=0;
+      const data=rows.map(r=>{const cs=s.cells[r]||{};mr=Math.max(mr,r);
+        const cx=Object.keys(cs).map(Number).sort((a,b)=>a-b).map(c=>{mc=Math.max(mc,c);const {v,st}=cs[c],si=st==null?0:this.style(st),rf=ref(r,c);
+          if(v==null||v==="")return `<c r="${rf}" s="${si}"/>`;
+          if(typeof v==="number"&&isFinite(v))return `<c r="${rf}" s="${si}"><v>${v}</v></c>`;
+          if(typeof v==="object"&&v.f)return `<c r="${rf}" s="${si}"><f>${X(v.f)}</f>${typeof v.v==="number"?`<v>${v.v}</v>`:""}</c>`;
+          return `<c r="${rf}" s="${si}" t="inlineStr"><is><t xml:space="preserve">${X(v)}</t></is></c>`}).join("");
+        const h=s.rowH[r];return `<row r="${r+1}"${h?` ht="${h}" customHeight="1"`:""}>${cx}</row>`}).join("");
+      const view=s.freeze?`<sheetView workbookViewId="0"><pane ySplit="${s.freeze}" topLeftCell="A${s.freeze+1}" activePane="bottomLeft" state="frozen"/></sheetView>`:`<sheetView workbookViewId="0"/>`;
+      const cols=s.cols.length?`<cols>${s.cols.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join("")}</cols>`:"";
+      const mg=s.merges.length?`<mergeCells count="${s.merges.length}">${s.merges.map(m=>`<mergeCell ref="${m}"/>`).join("")}</mergeCells>`:"",m=s.margins;
+      return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><dimension ref="A1:${ref(mr,mc)}"/><sheetViews>${view}</sheetViews><sheetFormatPr defaultRowHeight="21"/>${cols}<sheetData>${data}</sheetData>${mg}<printOptions horizontalCentered="1"/><pageMargins left="${m.l}" right="${m.r}" top="${m.t}" bottom="${m.b}" header="0.2" footer="0.2"/><pageSetup paperSize="9" orientation="${s.landscape?"landscape":"portrait"}" fitToWidth="1" fitToHeight="0"/>${s.footer?`<headerFooter><oddFooter>${X(s.footer)}</oddFooter></headerFooter>`:""}</worksheet>`}
+    blob(){
+      const sx=this.sheets.map(s=>this.sheetXml(s)),NS='xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"',H='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+      const styles=`${H}<styleSheet ${NS}>${this.fmts.length?`<numFmts count="${this.fmts.length}">${this.fmts.map((f,i)=>`<numFmt numFmtId="${164+i}" formatCode="${X(f)}"/>`).join("")}</numFmts>`:""}<fonts count="${this.fonts.length}">${this.fonts.join("")}</fonts><fills count="${this.fills.length+2}"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>${this.fills.join("")}</fills><borders count="${this.borders.length}">${this.borders.join("")}</borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="${this.xfs.length}">${this.xfs.join("")}</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+      const names=this.sheets.map((s,i)=>s.titleRows?`<definedName name="_xlnm.Print_Titles" localSheetId="${i}">'${X(s.name.replace(/'/g,"''"))}'!$${s.titleRows[0]+1}:$${s.titleRows[1]+1}</definedName>`:"").join("");
+      const wb=`${H}<workbook ${NS} xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView/></bookViews><sheets>${this.sheets.map((s,i)=>`<sheet name="${X(s.name)}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join("")}</sheets>${names?`<definedNames>${names}</definedNames>`:""}</workbook>`;
+      const R='http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+      const wbRels=`${H}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${this.sheets.map((s,i)=>`<Relationship Id="rId${i+1}" Type="${R}/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join("")}<Relationship Id="rId${this.sheets.length+1}" Type="${R}/styles" Target="styles.xml"/></Relationships>`;
+      const ct=`${H}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${this.sheets.map((s,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")}<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`;
+      const rels=`${H}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${R}/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
+      return zip([{name:"[Content_Types].xml",data:ct},{name:"_rels/.rels",data:rels},{name:"xl/workbook.xml",data:wb},{name:"xl/_rels/workbook.xml.rels",data:wbRels},{name:"xl/styles.xml",data:styles},
+        ...sx.map((x,i)=>({name:`xl/worksheets/sheet${i+1}.xml`,data:x}))])}}
+  return {Book,col};
+})();
+
+/* ---------- รายงาน Excel: บันทึกยาหมดอายุ, รายงานการตรวจนับ, ทะเบียนยา (รูปแบบตามแบบฟอร์มของแผนก) ---------- */
+const AF="Angsana New",BANDS=["<25%","25-50%","50-75%",">75%"];
+const fnt=(sz,b)=>({name:AF,sz,b:!!b});
+const box=(l,r,t,b)=>({l,r,t,b});
+const thDateShort=d=>d?`${+d.slice(8)}/${+d.slice(5,7)}/${String(+d.slice(0,4)+543).slice(2)}`:"";
+const ORG2="แผนกบริการด้านสัตว์ใหญ่ โรงพยาบาลสัตว์ มหาวิทยาลัยเกษตรศาสตร์ หนองโพ";
+function signBlock(s,r,c0,span,who){ // ลงชื่อ ... (......) วันที่
+  const st={font:fnt(16),align:{h:"center"}};
+  s.merge(r,c0,r,c0+span-1,"ลงชื่อ ..................................................",st);
+  s.merge(r+1,c0,r+1,c0+span-1,"(..................................................)",st);
+  s.merge(r+2,c0,r+2,c0+span-1,who,st);
+  s.merge(r+3,c0,r+3,c0+span-1,"วันที่ ........./........./.........",st);
+}
+// 1) บันทึกยาฉีดหมดอายุประจำเดือน (ตามไฟล์ตัวอย่างของแผนก)
+function xlExpiredLog(){
+  const rows=active().filter(t=>t.type==="disp"||t.type==="keep").sort((a,b)=>(a.date+a.at).localeCompare(b.date+b.at));
+  const b=new XLSX_MINI.Book(),s=b.sheet("บันทึกยาหมดอายุ");
+  const nL=S.locs.length,cB=3,cL=7,cM=7+nL,cN=8+nL,cO=9+nL,cP=10+nL,last=cP;
+  s.cols=[4.9,9.9,30,6.4,6.4,6.4,6.4,...S.locs.map(()=>8.2),4.6,26,16,19.6];
+  const groupStart=new Set([0,1,2,cB,cL,cM,cO,cP]);
+  s.merge(0,0,0,last,"บันทึกยาฉีดหมดอายุประจำเดือน "+monthLabel(S.month),{font:fnt(18,1),align:{h:"center"}});s.height(0,27);
+  const H=(sz,extra={})=>Object.assign({font:fnt(sz),align:{h:"center",wrap:true},border:box("medium","medium","medium","medium")},extra);
+  s.merge(1,0,2,0,"ลำดับที่",H(14));s.merge(1,1,2,1,"วันที่",H(16));s.merge(1,2,2,2,"ชนิดยาฉีด",H(16));
+  s.merge(1,cB,1,cB+3,"ปริมาณที่เหลือ",H(16));BANDS.forEach((x,i)=>s.set(2,cB+i,x.replace("-","–"),H(14)));
+  s.merge(1,cL,1,cL+nL-1,"สถานที่ใช้งาน",H(16));S.locs.forEach((l,i)=>s.set(2,cL+i,l.id,H(12)));
+  s.merge(1,cM,1,cN,"แนวทางการจัดการ",H(16));s.set(2,cM,"ทิ้ง",H(16));s.set(2,cN,"ใช้ต่อ (ระบุสถานที่ เวลา และเหตุผล)",H(14));
+  s.merge(1,cO,2,cO,"หมายเหตุ",H(16));s.set(1,cP,"ลงนาม",H(16));s.set(2,cP,"(หัวหน้าแผนกงานบริการด้านสัตว์ใหญ่)",H(9));
+  s.height(1,23.25);s.height(2,30);
+  const n=Math.max(rows.length,30);
+  for(let k=0;k<n;k++){const r=3+k,t=rows[k],lastRow=k===n-1;
+    for(let c=0;c<=last;c++){
+      const bd=box(groupStart.has(c)?"medium":"thin",(c===last||groupStart.has(c+1))?"medium":"thin","thin",lastRow?"medium":"thin");
+      const center=c===0||c===1||(c>=cB&&c<=cM);
+      let v="";
+      if(t){
+        if(c===0)v=k+1;else if(c===1)v=thDateShort(t.date);
+        else if(c===2)v=t.itemName+(t.qty&&t.qty!==1?` × ${fmt(t.qty)} ${t.unit}`:"");
+        else if(c>=cB&&c<cB+4)v=t.remain===BANDS[c-cB]?"✓":"";
+        else if(c>=cL&&c<cL+nL)v=t.loc===S.locs[c-cL].id?"✓":"";
+        else if(c===cM)v=t.type==="disp"?"✓":"";
+        else if(c===cN)v=t.type==="keep"?t.note:"";
+        else if(c===cO)v=[t.reason,t.type==="disp"?t.note:"",t.by].filter(Boolean).join(" · ");
+      }
+      s.set(r,c,v,{font:fnt(c===2||c===cN||c===cO?14:16),align:{h:center?"center":undefined,shrink:c===2||c===cO,wrap:c===cN},border:bd});
+    }
+    s.height(r,t&&t.type==="keep"?Math.max(23.25,21*Math.ceil(String(t.note).length/38)):23.25)}
+  s.titleRows=[0,2];s.freeze=3;s.footer='&R&"Angsana New"&12หน้า &P/&N';
+  return {name:`expired-log_${beYM()}.xlsx`,blob:b.blob()};
+}
+// 2) รายงานผลการตรวจนับ + ใบตรวจนับเปล่า
+function xlCountReport(){
+  const b=new XLSX_MINI.Book(),money="#,##0.00",qtyF="#,##0.##";
+  const rows=active().filter(t=>t.type==="adj").sort((a,b)=>(a.date+a.itemName).localeCompare(b.date+b.itemName,"th"));
+  const s=b.sheet("ผลการตรวจนับ");s.cols=[6,11,11,36,9,11,11,10,12,14,16,22];const L=11;
+  s.merge(0,0,0,L,"รายงานผลการตรวจนับยอดคงเหลือเวชภัณฑ์ ประจำเดือน "+monthLabel(S.month),{font:fnt(20,1),align:{h:"center"}});s.height(0,30);
+  s.merge(1,0,1,L,ORG2,{font:fnt(16),align:{h:"center"}});
+  const hd=["ลำดับ","วันที่นับ","รหัส","รายการ","หน่วย","ยอดในระบบ","ยอดนับได้","ส่วนต่าง","ต้นทุน/หน่วย","มูลค่าส่วนต่าง (บาท)","ผู้ตรวจนับ","หมายเหตุ"];
+  const HB={font:fnt(16,1),align:{h:"center",wrap:true},border:box("thin","thin","medium","medium"),fill:"E2EFDA"};
+  hd.forEach((h,c)=>s.set(3,c,h,HB));s.height(3,36);
+  let sumVal=0,match=0,diffN=0;const n=Math.max(rows.length,1);
+  for(let k=0;k<n;k++){const r=4+k,t=rows[k];const C=(c,v,o={})=>s.set(r,c,v,Object.assign({font:fnt(16),border:box("thin","thin","thin","thin")},o));
+    if(!t){C(0,"");s.merge(r,1,r,L,"ไม่มีการตรวจนับในเดือนนี้",{font:fnt(16),align:{h:"center"},border:box("thin","thin","thin","thin")});break}
+    const cost=unitCost(t),val=cost==null?null:Math.round(t.qty*cost*100)/100;if(val!=null)sumVal+=val;t.qty===0?match++:diffN++;
+    C(0,k+1,{align:{h:"center"}});C(1,thDateShort(t.date),{align:{h:"center"}});C(2,t.code||"");C(3,t.itemName,{align:{shrink:true}});C(4,t.unit);
+    C(5,t.sys,{numFmt:qtyF});C(6,t.counted,{numFmt:qtyF});C(7,t.qty,{numFmt:'+#,##0.##;-#,##0.##;0',font:Object.assign(fnt(16,1),{color:t.qty<0?"C00000":t.qty>0?"1F4E79":"000000"})});
+    C(8,cost,{numFmt:money});C(9,val,{numFmt:'+#,##0.00;-#,##0.00;0.00'});C(10,t.by);C(11,t.note==="ปรับยอดตรวจนับ"?"":t.note,{align:{shrink:true}});
+    s.height(r,23.25)}
+  let r=4+n+1;const SB={font:fnt(16,1)};
+  s.merge(r,0,r,4,`นับทั้งหมด ${rows.length} รายการ · ตรงกับระบบ ${match} รายการ · ไม่ตรง ${diffN} รายการ`,SB);
+  s.merge(r,5,r,8,"มูลค่าส่วนต่างรวม (บาท)",{font:fnt(16,1),align:{h:"right"}});s.set(r,9,Math.round(sumVal*100)/100,{font:fnt(16,1),numFmt:'+#,##0.00;-#,##0.00;0.00',border:box(null,null,"thin","double")});
+  r+=3;signBlock(s,r,1,4,"ผู้ตรวจนับ");signBlock(s,r,7,5,"หัวหน้าแผนกงานบริการด้านสัตว์ใหญ่");
+  s.titleRows=[3,3];s.freeze=4;s.footer='&R&"Angsana New"&12หน้า &P/&N';
+  // ใบตรวจนับ (พิมพ์ไปนับ)
+  const w=b.sheet("ใบตรวจนับ");w.landscape=false;w.cols=[6,11,40,13,9,12,12,10,18];const WL=8;
+  const today=isoLocal(new Date());
+  w.merge(0,0,0,WL,"ใบตรวจนับยอดคงเหลือเวชภัณฑ์",{font:fnt(20,1),align:{h:"center"}});w.height(0,30);
+  w.merge(1,0,1,WL,ORG2+" · ยอดในระบบ ณ วันที่ "+thDate(today),{font:fnt(15),align:{h:"center"}});
+  ["ลำดับ","รหัส","รายการ","หมวด","หน่วย","ยอดในระบบ","ยอดนับได้","ส่วนต่าง","หมายเหตุ"].forEach((h,c)=>w.set(3,c,h,HB));w.height(3,30);
+  const items=sortedItems("all");items.forEach((it,k)=>{const rr=4+k,B=box("thin","thin","thin","thin");
+    w.set(rr,0,k+1,{font:fnt(16),align:{h:"center"},border:B});w.set(rr,1,it.code,{font:fnt(15),border:B});w.set(rr,2,it.name,{font:fnt(15),align:{shrink:true},border:B});
+    w.set(rr,3,CAT[it.cat],{font:fnt(14),border:B});w.set(rr,4,it.unit,{font:fnt(15),border:B});w.set(rr,5,it.stock||0,{font:fnt(16),numFmt:qtyF,border:B});
+    [6,7,8].forEach(c=>w.set(rr,c,"",{font:fnt(16),border:B}));w.height(rr,22)});
+  signBlock(w,4+items.length+2,1,3,"ผู้ตรวจนับ");signBlock(w,4+items.length+2,5,4,"ผู้ตรวจสอบ");
+  w.titleRows=[3,3];w.freeze=4;w.footer='&R&"Angsana New"&12หน้า &P/&N';
+  return {name:`stock-count_${beYM()}.xlsx`,blob:b.blob()};
+}
+// 3) ทะเบียนยาและเวชภัณฑ์ (ตามที่ค้นหา/กรองอยู่ในหน้าทะเบียนยา)
+function xlRegister(){
+  const list=itemList(),filtered=list.length!==S.items.size,b=new XLSX_MINI.Book(),s=b.sheet("ทะเบียนยา"),money="#,##0.00";
+  s.cols=[6,11,42,15,9,13,10,10,15,18];const L=9;
+  s.merge(0,0,0,L,"ทะเบียนยาและเวชภัณฑ์ แผนกบริการด้านสัตว์ใหญ่",{font:fnt(20,1),align:{h:"center"}});s.height(0,30);
+  s.merge(1,0,1,L,`โรงพยาบาลสัตว์ มหาวิทยาลัยเกษตรศาสตร์ หนองโพ · ข้อมูล ณ วันที่ ${thDate(isoLocal(new Date()))} · ${list.length} รายการ${filtered?" (เฉพาะที่ค้นหา/กรอง)":""}`,{font:fnt(16),align:{h:"center"}});
+  const HB={font:fnt(16,1),align:{h:"center",wrap:true},border:box("thin","thin","medium","medium"),fill:"E2EFDA"};
+  ["ลำดับ","รหัส","ชื่อรายการ","หมวด","หน่วย","ราคาต้นทุน/หน่วย (บาท)","จุดสั่งซื้อ","คงเหลือ","มูลค่าคงเหลือ (บาท)","บาร์โค้ดผู้ผลิต"].forEach((h,c)=>s.set(3,c,h,HB));s.height(3,36);
+  let tot=0;
+  list.forEach((it,k)=>{const r=4+k,B=box("thin","thin","thin","thin"),C=(c,v,o={})=>s.set(r,c,v,Object.assign({font:fnt(16),border:B},o));
+    const val=it.cost==null?null:Math.round((it.stock||0)*it.cost*100)/100;if(val!=null)tot+=val;
+    C(0,k+1,{align:{h:"center"}});C(1,it.code);C(2,it.name,{align:{shrink:true}});C(3,CAT[it.cat],{font:fnt(15)});C(4,it.unit);
+    C(5,it.cost,{numFmt:money});C(6,it.min||null,{numFmt:"#,##0.##"});C(7,it.stock||0,{numFmt:"#,##0.##"});
+    C(8,val==null?null:{f:`H${r+1}*F${r+1}`,v:val},{numFmt:money});C(9,it.barcode||"");s.height(r,22)});
+  const r=4+list.length;
+  s.merge(r,0,r,7,"มูลค่าคงเหลือรวม (บาท)",{font:fnt(16,1),align:{h:"right"},border:box("thin","thin","medium","double")});
+  s.set(r,8,list.length?{f:`SUM(I5:I${r})`,v:Math.round(tot*100)/100}:0,{font:fnt(16,1),numFmt:money,border:box("thin","thin","medium","double")});
+  s.set(r,9,"",{border:box("thin","thin","medium","double")});
+  s.titleRows=[3,3];s.freeze=4;s.footer='&R&"Angsana New"&12หน้า &P/&N';
+  return {name:`drug-register_${isoLocal(new Date())}.xlsx`,blob:b.blob()};
+}
+function xlDownload(btn,msgSel,build){try{btn.disabled=true;const {name,blob}=build();saveBlob(name,blob);flash(msgSel,"ดาวน์โหลด "+name+" แล้ว","ok")}catch(e){flash(msgSel,"สร้างไฟล์ไม่สำเร็จ: "+(e.message||e),"err")}btn.disabled=false}
+$("#dlExpLog").onclick=()=>xlDownload($("#dlExpLog"),"#repMsg",xlExpiredLog);
+$("#dlCount").onclick=()=>xlDownload($("#dlCount"),"#repMsg",xlCountReport);
+$("#dlRegister").onclick=()=>xlDownload($("#dlRegister"),"#banner",xlRegister);
 
 /* ---------- render / boot ---------- */
 function renderAll(){if(!S.user)return;renderLocChips();renderLines();renderHist();renderStock();renderSummary();renderRepOptions();renderReport();renderItems()}
