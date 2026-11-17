@@ -187,6 +187,11 @@ nav a .dot{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;bor
 .lotrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 .lotrow input{padding:5px 8px;font-size:13px}
 .lotrow input[type=date]{width:150px}.lotrow input.lot{width:110px}
+.lotrow{align-items:center}.lotrow label{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted,#5b6b66)}
+.lotrow input.exp{width:96px;font-family:var(--mono,monospace)}.lotrow input.exp.bad{border-color:#d92d20;background:#fff1f0}
+.expchip{border:1px solid var(--line,#d5ddd9);background:#fff;border-radius:999px;padding:3px 9px;font-size:12px;cursor:pointer;color:inherit}
+.expchip[aria-pressed=true]{background:var(--accent-soft,#e3f1ec);border-color:var(--accent,#1f6f5c);font-weight:600}
+.expchip.add{border-style:dashed}
 .more{position:fixed;right:max(12px,env(safe-area-inset-right,0px));bottom:calc(64px + env(safe-area-inset-bottom,0px));z-index:8;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.2);display:flex;flex-direction:column;min-width:200px;overflow:hidden}
 .more a{padding:14px 18px;text-decoration:none;color:var(--ink);border-bottom:1px solid var(--line)}
 .more a:last-child{border-bottom:0}
@@ -297,7 +302,7 @@ nav a .dot{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;bor
 
   <section data-view="expiry" hidden>
     <div class="row" style="justify-content:space-between;align-items:end;margin-bottom:12px">
-      <div><h2>ยาใกล้หมดอายุ</h2><p class="sub" style="margin:0" id="expSub">จำนวนคงเหลือแยกตาม Lot และวันหมดอายุ ณ วันนี้</p></div>
+      <div><h2>ยาใกล้หมดอายุ</h2><p class="sub" style="margin:0" id="expSub">จำนวนคงเหลือแยกตามวันหมดอายุ ณ วันนี้</p></div>
       <div class="row"><button class="btn" id="expRefresh">โหลดใหม่</button><button class="btn" id="dlExpiry">ดาวน์โหลด (.xlsx)</button></div>
     </div>
     <div class="stats" id="expStats"></div>
@@ -408,7 +413,7 @@ nav a .dot{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;bor
       <div><label class="lbl" for="iBar">บาร์โค้ดบนกล่อง (ถ้ามี)</label><div class="pickrow"><input id="iBar" placeholder="สแกนหรือพิมพ์"><button class="btn" type="button" id="iBarScan">สแกน</button></div></div>
     </div>
     <div><label class="lbl" for="iCost">ราคาต้นทุนต่อหน่วย (บาท)</label><input id="iCost" type="number" min="0" step="any" inputmode="decimal" placeholder="เช่น 26.89"></div>
-    <div id="iStockRow" class="f2"><div><label class="lbl" for="iStock">ยอดยกมา (ครั้งแรก)</label><input id="iStock" type="number" min="0" inputmode="numeric" value="0"></div><div><label class="lbl" for="iExp">วันหมดอายุของยอดยกมา</label><input id="iExp" type="date"></div></div>
+    <div id="iStockRow" class="f2"><div><label class="lbl" for="iStock">ยอดยกมา (ครั้งแรก)</label><input id="iStock" type="number" min="0" inputmode="numeric" value="0"></div><div><label class="lbl" for="iExp">วันหมดอายุของยอดยกมา (ดด/ปป)</label><input id="iExp" placeholder="เช่น 04/29" inputmode="numeric" maxlength="7" oninput="this.value=expFmt(this.value)"></div></div>
     <div class="qrbox" id="iQr" hidden><canvas id="iQrCanvas" width="264" height="264"></canvas><div><div class="code" id="iCodeTxt"></div><p class="note">สแกน QR นี้ในหน้าเบิกเพื่อเพิ่มรายการนี้</p></div></div>
     <div id="iMsg" hidden></div>
   </div>
@@ -455,6 +460,14 @@ const baht=n=>n==null?"–":Number(n).toLocaleString("th-TH",{minimumFractionDig
 const num=x=>{const v=parseFloat(String(x??"").replace(/,/g,""));return isNaN(v)?null:v};
 const unitCost=t=>t.cost!=null?t.cost:(S.items.get(t.itemId)||{}).cost??null;
 const thDate=d=>d?`${d.slice(8)}/${d.slice(5,7)}/${+d.slice(0,4)+543}`:"";
+/* วันหมดอายุแบบ ดด/ปป: ถือว่าหมดอายุวันสุดท้ายของเดือน (ปี พ.ศ. แปลงเป็น ค.ศ. ให้) */
+function expParse(x){x=String(x||"").trim();if(!x)return"";if(/^\d{4}-\d{2}-\d{2}$/.test(x))return x;
+  const m=x.match(/^(\d{1,2})\s*[\/\-.]\s*(\d{2}|\d{4})$/);if(!m)return null;let mo=+m[1],y=+m[2];if(mo<1||mo>12)return null;
+  if(y<100)y+=y>=43?2500:2000;if(y>2400)y-=543;return y+"-"+pad(mo)+"-"+pad(new Date(y,mo,0).getDate())}
+const expLbl=d=>d&&/^\d{4}-\d{2}/.test(d)?d.slice(5,7)+"/"+d.slice(2,4):"";
+function expFmt(v){v=String(v).replace(/[^\d\/]/g,"");if(/^\d{3,}$/.test(v))v=v.slice(0,2)+"/"+v.slice(2);return v.slice(0,7)}
+/** ยอดในคลังแยกตามวันหมดอายุของรายการ (จากหน้ายาใกล้หมดอายุ) */
+function lotsOf(id){const m={};(S.exp?S.exp.lots:[]).filter(l=>l.itemId===id).forEach(l=>{const k=expLbl(l.exp);m[k]=(m[k]||0)+l.qty});return Object.entries(m).sort((a,b)=>expParse(a[0]).localeCompare(expParse(b[0])))}
 function parseDate(x){x=String(x||"").trim();if(!x)return"";let m=x.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);if(m){let y=+m[1];if(y>2400)y-=543;return y+"-"+pad(m[2])+"-"+pad(m[3])}
   m=x.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);if(m){let y=+m[3];if(y<100)y+=y>=60?2500:2000;if(y>2400)y-=543;return y+"-"+pad(m[2])+"-"+pad(m[1])}return""}
 const monthLabel=m=>{const[y,mm]=m.split("-").map(Number);return TH_M[mm-1]+" "+(y+543)};
@@ -550,10 +563,10 @@ const MODE={
   out:{title:"เบิกออกจากคลัง",btn:"บันทึกการเบิก",note:"หมายเหตุ",ph:"เช่น งานออกพื้นที่"},
   in:{title:"รับเข้าคลัง",btn:"บันทึกรับเข้า",note:"แหล่งที่มา / เลขที่ใบส่งของ",ph:"เช่น ใบส่งของเลขที่ 123/2569"},
   count:{title:"ตรวจนับและปรับยอด",btn:"บันทึกยอดนับ",note:"หมายเหตุ",ph:"เช่น ตรวจนับสิ้นเดือน"},
-  dispose:{title:"ทิ้งยาเสื่อมสภาพ/หมดอายุ",btn:"บันทึกการทิ้ง",note:"Lot / วันหมดอายุ / หมายเหตุ",ph:"เช่น Lot A123 EXP 09/2026"}};
+  dispose:{title:"ทิ้งยาเสื่อมสภาพ/หมดอายุ",btn:"บันทึกการทิ้ง",note:"หมายเหตุ",ph:"เช่น Lot A123 EXP 09/2026"}};
 const MARKUP=Number(CFG.DISPOSE_MARKUP)||0,MARKUP_LBL="ต้นทุน+"+Math.round(MARKUP*100)+"%";
 const dispCost=c=>c==null?null:Math.round(c*(1+MARKUP)*100)/100;
-const HINT={out:"ตัดยอดออกจากคลังไปใช้งาน เลือกทะเบียนรถหรือสถานที่ก่อนบันทึก",in:"เพิ่มยอดเข้าคลัง ใส่ Lot และวันหมดอายุ (EXP) ทุกครั้งเพื่อใช้แจ้งเตือนยาใกล้หมดอายุ",
+const HINT={out:"ตัดยอดออกจากคลังไปใช้งาน เลือกทะเบียนรถหรือสถานที่ก่อนบันทึก ระบุวันหมดอายุของขวดที่หยิบได้",in:"เพิ่มยอดเข้าคลัง ใส่วันหมดอายุเป็น เดือน/ปี (เช่น 04/29) ทุกครั้งเพื่อใช้แจ้งเตือนยาใกล้หมดอายุ",
   count:"ใส่จำนวนที่นับได้จริง หรือใช้ใบนับ Excel ระบบปรับยอดตามส่วนต่าง",dispose:"ตัดยาเสื่อมสภาพหรือหมดอายุออกจากคลัง ไม่นับเป็นการใช้งาน"};
 function setMode(m){
   if((m==="count"||m==="dispose")&&!isAdmin())m="out";
@@ -577,7 +590,7 @@ function renderDispExtras(){
   $$("#remainChips .chip").forEach(x=>x.setAttribute("aria-pressed",x.dataset.b===S.remain));
   $("#dispLocChips").innerHTML=DISP_LOCS.map(l=>`<button type="button" class="chip" data-dl="${esc(l)}" aria-pressed="${S.dloc===l}">${esc(l)}</button>`).join("");
   if(S.mode==="dispose"){$("#submit").textContent=S.manage==="ใช้ต่อ"?"บันทึกการใช้ต่อ":"บันทึกการทิ้ง";
-    $("#noteLbl").textContent=S.manage==="ใช้ต่อ"?"ใช้ต่อที่ไหน เมื่อไร เพราะอะไร (ต้องระบุ)":"Lot / วันหมดอายุ / หมายเหตุ";
+    $("#noteLbl").textContent=S.manage==="ใช้ต่อ"?"ใช้ต่อที่ไหน เมื่อไร เพราะอะไร (ต้องระบุ)":"หมายเหตุ";
     $("#dispNote").textContent=S.manage==="ใช้ต่อ"?"ใช้ต่อ: บันทึกลงสมุดยาหมดอายุ ไม่ตัดยอดคงคลัง":"ตัดยอดออกจากคลัง ไม่นับเป็นการใช้งาน มูลค่าคิดที่ราคา"+MARKUP_LBL}
 }
 $("#manageSeg").addEventListener("click",e=>{const b=e.target.closest("[data-m]");if(!b)return;S.manage=b.dataset.m;renderDispExtras();renderLines();hideMsg("#formMsg")});
@@ -614,7 +627,7 @@ $("#pick").addEventListener("keydown",e=>{
 });
 $("#sugg").addEventListener("mousedown",e=>e.preventDefault());
 $("#sugg").addEventListener("click",e=>{const b=e.target.closest("[data-id]");if(!b)return;addLine(b.dataset.id);$("#pick").value="";$("#sugg").hidden=true});
-function addLine(id,q=1){const l=S.lines.find(x=>x.id===id);if(l)l.qty+=q;else S.lines.push({id,qty:q});hideMsg("#formMsg");renderLines()}
+function addLine(id,q=1){const l=[...S.lines].reverse().find(x=>x.id===id);if(l)l.qty+=q;else S.lines.push({id,qty:q,exp:""});hideMsg("#formMsg");renderLines()}
 function renderLines(){
   const el=$("#lines");
   if(!S.lines.length){el.innerHTML=S.mode==="count"?`<div class="emptyline">สแกนหรือค้นหารายการที่ตรวจนับ แล้วใส่จำนวนที่นับได้จริง<br><span class="note">ระบบบันทึกเฉพาะส่วนต่างเป็น "ปรับยอด" และไม่นับเป็นการใช้งานในรายงาน</span></div>`:`<div class="emptyline">ยังไม่มีรายการ กด <b>สแกน</b> หรือพิมพ์ค้นหาเพื่อเพิ่ม<br><span class="note">สแกนของเดิมซ้ำจะเพิ่มจำนวนให้อัตโนมัติ</span></div>`;return}
@@ -622,22 +635,36 @@ function renderLines(){
     const short=(S.mode==="out"||S.mode==="dispose")&&l.qty>(it.stock||0),diff=Math.round((l.qty-(it.stock||0))*1e4)/1e4;
     const info=S.mode==="count"?`<span class="code">ในระบบ ${fmt(it.stock)} → นับได้ ${fmt(l.qty)} ${esc(it.unit)}</span> ${diff?`<span class="tag ${diff>0?"in":"out"}">${diff>0?"+":"−"}${fmt(Math.abs(diff))}</span>`:'<span class="note">ตรงกัน</span>'}`
       :`<span class="code">คงเหลือ ${fmt(it.stock)} ${esc(it.unit)}</span>${short?' <span class="tag out">ไม่พอ</span>':""}${S.mode==="dispose"&&S.manage!=="ใช้ต่อ"?` <span class="code">มูลค่า ${it.cost==null?"– (ยังไม่มีราคา)":baht(l.qty*dispCost(it.cost))+" บาท"}</span>`:""}`;
-    const lotrow=S.mode==="in"?`<div class="lotrow"><input type="date" data-exp="${k}" value="${esc(l.exp||"")}" aria-label="วันหมดอายุ" title="วันหมดอายุ (EXP)"><input class="lot" data-lot="${k}" value="${esc(l.lot||"")}" placeholder="Lot" aria-label="Lot"></div>`:"";
+    let lotrow="";
+    if(S.mode==="in"||S.mode==="out"||S.mode==="dispose"){
+      const lots=S.mode==="in"?[]:lotsOf(l.id),bad=expParse(l.exp)===null,cur=expLbl(expParse(l.exp)||""),lq=lots.find(x=>x[0]===cur);
+      const over=S.mode!=="in"&&cur&&lq&&l.qty>lq[1]+1e-9,many=S.lines.filter(x=>x.id===l.id).length>1;
+      lotrow=`<div class="lotrow"><label>วันหมดอายุ <input class="exp${bad?" bad":""}" data-exp="${k}" value="${esc(l.exp||"")}" placeholder="ดด/ปป" inputmode="numeric" maxlength="7" aria-label="วันหมดอายุ เดือน/ปี" title="เดือน/ปี เช่น 04/29 (หมดอายุวันสุดท้ายของเดือน)"></label>`
+        +lots.map(([e,q])=>`<button type="button" class="expchip" data-pickexp="${k}" data-e="${e}" aria-pressed="${cur===e}">${e} · ${fmt(q)}</button>`).join("")
+        +`<button type="button" class="expchip add" data-split="${k}" title="เพิ่มอีกบรรทัดของรายการเดียวกัน สำหรับวันหมดอายุอื่น">+ วันหมดอายุอื่น</button>`
+        +(bad?' <span class="tag out">รูปแบบ ดด/ปป</span>':"")+(over?` <span class="tag low">เกินยอดของ ${cur} (มี ${fmt(lq[1])})</span>`:"")
+        +(S.mode!=="in"&&!cur&&many?' <span class="note">ไม่ระบุ = จ่ายล็อตที่หมดอายุก่อน</span>':"")+`</div>`}
     return `<div class="line"><div class="nm"><b>${esc(it.name)}</b><span class="tag ${it.cat}">${CAT[it.cat]}</span> ${info}${lotrow}</div>
     <div class="qty"><button type="button" data-k="${k}" data-d="-1" aria-label="ลด">−</button><input id="q${k}" data-k="${k}" type="number" min="0" step="any" inputmode="decimal" value="${l.qty}"><button type="button" data-k="${k}" data-d="1" aria-label="เพิ่ม">+</button></div>
     <button type="button" class="btn ghost" data-rm="${k}" aria-label="เอาออก">✕</button></div>`}).join("");
 }
 $("#lines").addEventListener("click",e=>{
   const d=e.target.closest("[data-d]");if(d){const l=S.lines[+d.dataset.k];l.qty=Math.max(0,+l.qty+ +d.dataset.d);renderLines();return}
-  const r=e.target.closest("[data-rm]");if(r){S.lines.splice(+r.dataset.rm,1);renderLines()}
+  const r=e.target.closest("[data-rm]");if(r){S.lines.splice(+r.dataset.rm,1);renderLines();return}
+  const pk=e.target.closest("[data-pickexp]");if(pk){const l=S.lines[+pk.dataset.pickexp];l.exp=l.exp===pk.dataset.e?"":pk.dataset.e;renderLines();return}
+  const sp=e.target.closest("[data-split]");if(sp){const k=+sp.dataset.split,l=S.lines[k];S.lines.splice(k+1,0,{id:l.id,qty:1,exp:""});renderLines();
+    setTimeout(()=>{const x=$(`#lines [data-exp="${k+1}"]`);if(x)x.focus()},0)}
 });
-$("#lines").addEventListener("input",e=>{const x=e.target;if(x.dataset.exp)S.lines[+x.dataset.exp].exp=x.value;if(x.dataset.lot)S.lines[+x.dataset.lot].lot=x.value});
-$("#lines").addEventListener("change",e=>{if(e.target.dataset.exp)S.lines[+e.target.dataset.exp].exp=e.target.value;if(e.target.matches("input[data-k]")){S.lines[+e.target.dataset.k].qty=Math.max(0,parseFloat(e.target.value)||0);renderLines()}});
+$("#lines").addEventListener("input",e=>{const x=e.target;if(x.dataset.exp){const v=expFmt(x.value);if(v!==x.value)x.value=v;S.lines[+x.dataset.exp].exp=v;x.classList.remove("bad")}if(x.dataset.lot)S.lines[+x.dataset.lot].lot=x.value});
+$("#lines").addEventListener("change",e=>{if(e.target.dataset.exp){S.lines[+e.target.dataset.exp].exp=expFmt(e.target.value);renderLines()}if(e.target.matches("input[data-k]")){S.lines[+e.target.dataset.k].qty=Math.max(0,parseFloat(e.target.value)||0);renderLines()}});
 $("#clearLines").onclick=()=>{S.lines=[];renderLines();hideMsg("#formMsg")};
 function flash(sel,text,kind){const m=$(sel);m.className="msg "+kind;m.textContent=text;m.hidden=false}
 function hideMsg(sel){$(sel).hidden=true}
 
 let busy=false;
+// รวมบรรทัดของรายการเดียวกันที่วันหมดอายุเดียวกัน
+function mergeLines(lines){const m=new Map();lines.forEach(l=>{const exp=S.mode==="count"?"":expParse(l.exp)||"",k=l.id+"|"+exp,o=m.get(k);
+  if(o)o.qty=Math.round((o.qty+ +l.qty)*1e4)/1e4;else m.set(k,{itemId:l.id,qty:+l.qty,exp,lot:l.lot||""})});return [...m.values()]}
 $("#submit").onclick=async()=>{
   if(busy)return;
   const lines=S.lines.filter(l=>(S.mode==="count"?l.qty>=0:l.qty>0)&&S.items.has(l.id));
@@ -647,12 +674,14 @@ $("#submit").onclick=async()=>{
   if(out&&lines.some(l=>S.items.get(l.id).cat==="drug")&&!S.loc)return flash("#formMsg","กรุณาเลือกทะเบียนรถหรือสถานที่ใช้งานสำหรับรายการยา","err");
   if(S.mode==="dispose"&&!S.reason)return flash("#formMsg","กรุณาเลือกเหตุผล: หมดอายุ หรือ เสื่อมสภาพ","err");
   if(S.mode==="dispose"&&S.manage==="ใช้ต่อ"&&!$("#note").value.trim())return flash("#formMsg","กรุณาระบุสถานที่ เวลา และเหตุผลที่ใช้ต่อ ในช่องหมายเหตุ","err");
+  if(S.mode!=="count"){const bad=lines.filter(l=>expParse(l.exp)===null);
+    if(bad.length)return flash("#formMsg","วันหมดอายุของ "+bad.map(l=>S.items.get(l.id).name).join(", ")+" ไม่ถูกต้อง ใส่เป็น เดือน/ปี เช่น 04/29","err")}
   if(S.mode==="in"){const miss=lines.filter(l=>!l.exp&&S.items.get(l.id).cat==="drug");
     if(miss.length&&!S.expWarned){S.expWarned=true;return flash("#formMsg","ยา "+miss.length+" รายการยังไม่ได้ใส่วันหมดอายุ (EXP) จะไม่แสดงในหน้ายาใกล้หมดอายุ กดบันทึกอีกครั้งถ้าต้องการบันทึกโดยไม่ใส่","warn")}}
   S.expWarned=false;
   busy=true;$("#submit").disabled=true;flash("#formMsg","กำลังบันทึก…","warn");
   try{
-    const j=await api("submit",{mode:S.mode,date,loc:S.mode==="dispose"?S.dloc:S.loc,reason:S.reason,manage:S.manage,remain:S.remain,note:$("#note").value.trim(),lines:lines.map(l=>({itemId:l.id,qty:l.qty,exp:l.exp||"",lot:l.lot||""}))});
+    const j=await api("submit",{mode:S.mode,date,loc:S.mode==="dispose"?S.dloc:S.loc,reason:S.reason,manage:S.manage,remain:S.remain,note:$("#note").value.trim(),lines:mergeLines(lines)});
     setItems(j.items);S.lines=[];$("#note").value="";
     loadExpiry(true);
     const dispMsg=S.manage==="ใช้ต่อ"?"บันทึกการใช้ต่อ ":"บันทึกการทิ้ง ";if(S.mode==="dispose"){S.remain="";S.dloc="";renderDispExtras()}
@@ -670,7 +699,7 @@ function renderHist(){
   $("#histCount").textContent=monthLabel(S.month)+" · "+list.filter(t=>!t.cancelled).length+" รายการ";
   if(!list.length){$("#hist").innerHTML=`<div class="emptyline">ยังไม่มีรายการในเดือนนี้</div>`;return}
   $("#hist").innerHTML=list.slice(0,100).map(t=>{
-    const sub=[t.type==="out"?(t.loc?locName(t.loc):"พัสดุสิ้นเปลือง"):t.type==="adj"?(t.counted!=null?"ตรวจนับ: ในระบบ "+fmt(t.sys)+" นับได้ "+fmt(t.counted):"ปรับยอด"):t.type==="disp"?"ทิ้ง: "+(t.reason||"-"):t.type==="keep"?"ใช้ต่อ ("+(t.reason||"หมดอายุ")+")":"รับเข้า",t.remain?"เหลือ "+t.remain:"",(t.type==="disp"||t.type==="keep")&&t.loc?locName(t.loc):"",t.lot?"Lot "+t.lot:"",t.exp?"EXP "+thDate(t.exp):"",t.note,t.by].filter(Boolean).join(" · ");
+    const sub=[t.type==="out"?(t.loc?locName(t.loc):"พัสดุสิ้นเปลือง"):t.type==="adj"?(t.counted!=null?"ตรวจนับ: ในระบบ "+fmt(t.sys)+" นับได้ "+fmt(t.counted):"ปรับยอด"):t.type==="disp"?"ทิ้ง: "+(t.reason||"-"):t.type==="keep"?"ใช้ต่อ ("+(t.reason||"หมดอายุ")+")":"รับเข้า",t.remain?"เหลือ "+t.remain:"",(t.type==="disp"||t.type==="keep")&&t.loc?locName(t.loc):"",t.lot?"Lot "+t.lot:"",t.exp?"EXP "+expLbl(t.exp):"",t.note,t.by].filter(Boolean).join(" · ");
     const neg=t.type==="out"||t.type==="disp"||(t.type==="adj"&&t.qty<0);
     const can=!t.cancelled&&(isAdmin()||t.by===S.user.name);
     const act=t.cancelled?'<span class="note">ยกเลิกแล้ว</span>':!can?"":pendingDel===t.id
@@ -756,7 +785,7 @@ function expBuckets(){
 let expReq=0;
 async function loadExpiry(quiet){
   const my=++expReq;if(!quiet&&!S.exp)flash("#expMsg","กำลังโหลด…","warn");
-  try{const j=await api("expiry");if(my!==expReq)return;S.exp=j;setItems(j.items);hideMsg("#expMsg");
+  try{const j=await api("expiry");if(my!==expReq)return;S.exp=j;setItems(j.items);hideMsg("#expMsg");if(S.lines.length)renderLines();
     const B=expBuckets();const n=B?B.g.g0.length+B.g.g1.length:0;if(n!==S.expAlert){S.expAlert=n;renderNav()}
     renderExpiry();if(!quiet)renderStock()}
   catch(e){if(!quiet)flash("#expMsg",e.message,"err")}
@@ -777,9 +806,9 @@ function renderExpiry(){
 $("#expRefresh").onclick=()=>loadExpiry(false);
 $("#expGroups").addEventListener("click",e=>{const b=e.target.closest("[data-dispose]");if(!b)return;
   const [k,i]=b.dataset.dispose.split(":"),r=expBuckets().g[k][+i];if(!r)return;
-  S.adjMode="dispose";S.linesBy.dispose=S.linesBy.dispose.filter(l=>l.id!==r.itemId);S.linesBy.dispose.push({id:r.itemId,qty:r.qty});
+  S.adjMode="dispose";S.linesBy.dispose=S.linesBy.dispose.filter(l=>l.id!==r.itemId);S.linesBy.dispose.push({id:r.itemId,qty:r.qty,exp:expLbl(r.exp)});
   S.reason=k==="g0"?"หมดอายุ":S.reason;location.hash="#adjust";
-  setTimeout(()=>{$$("#reasonChips .chip").forEach(x=>x.setAttribute("aria-pressed",x.dataset.r===S.reason));$("#note").value=(r.lot?"Lot "+r.lot+" ":"")+"EXP "+thDate(r.exp)},0)});
+  setTimeout(()=>{$$("#reasonChips .chip").forEach(x=>x.setAttribute("aria-pressed",x.dataset.r===S.reason));$("#note").value=(r.lot?"Lot "+r.lot+" ":"")+"EXP "+expLbl(r.exp)},0)});
 $("#dlExpiry").onclick=()=>withExcel($("#dlExpiry"),"#expMsg",wb=>{
   const B=expBuckets(),ws=wb.addWorksheet("ยาใกล้หมดอายุ"),F14={name:FONT,size:14};
   ws.addRow(["รายงานยาใกล้หมดอายุ ณ วันที่ "+thDate(isoLocal(new Date()))]).font={name:FONT,size:16,bold:true};
@@ -1045,7 +1074,7 @@ $$("dialog [data-close]").forEach(b=>b.onclick=()=>b.closest("dialog").close());
 $("#iSave").onclick=async()=>{
   const name=$("#iName").value.trim();if(!name)return flash("#iMsg","กรุณาใส่ชื่อรายการ","err");
   $("#iSave").disabled=true;
-  try{const j=await api("saveItem",{item:{id:editId||"",name,cat:$("#iCat").value,unit:$("#iUnit").value.trim(),min:parseFloat($("#iMin").value)||0,barcode:$("#iBar").value.trim(),stock:parseFloat($("#iStock").value)||0,exp:$("#iExp").value,cost:$("#iCost").value===""?"":num($("#iCost").value)}});
+  try{const j=await api("saveItem",{item:{id:editId||"",name,cat:$("#iCat").value,unit:$("#iUnit").value.trim(),min:parseFloat($("#iMin").value)||0,barcode:$("#iBar").value.trim(),stock:parseFloat($("#iStock").value)||0,exp:expParse($("#iExp").value)||"",cost:$("#iCost").value===""?"":num($("#iCost").value)}});
     setItems(j.items);renderAll();$("#itemDlg").close();if(!editId)loadTxns().catch(()=>{})}
   catch(e){flash("#iMsg",e.message,"err")}
   $("#iSave").disabled=false;
@@ -1065,7 +1094,7 @@ $("#bulkSave").onclick=async()=>{
     if(!p[0]||/^ชื่อ/.test(p[0]))return;
     const cost=num(p[5]);
     if(seen.has(key(p[0]))){dup++;const ex=byKey.get(key(p[0]));if(ex&&cost!=null&&cost>=0&&cost!==ex.cost)costUpdates.push({id:ex.id,cost});return}seen.add(key(p[0]));
-    rows.push({name:p[0],unit:p[1]||"",cat:/พัสดุ|สิ้นเปลือง|supply/i.test(p[2]||"")?"supply":"drug",stock:Math.max(0,num(p[3])||0),min:Math.max(0,num(p[4])||0),cost:cost!=null&&cost>=0?cost:"",exp:parseDate(p[6])});
+    rows.push({name:p[0],unit:p[1]||"",cat:/พัสดุ|สิ้นเปลือง|supply/i.test(p[2]||"")?"supply":"drug",stock:Math.max(0,num(p[3])||0),min:Math.max(0,num(p[4])||0),cost:cost!=null&&cost>=0?cost:"",exp:parseDate(p[6])||expParse(p[6])||""});
   });
   if(!rows.length&&!costUpdates.length)return flash("#bulkMsg",dup?"ทุกรายการมีอยู่ในทะเบียนแล้ว และราคาต้นทุนตรงกันทั้งหมด":"ยังไม่ได้วางรายการ","err");
   $("#bulkSave").disabled=true;flash("#bulkMsg","กำลังนำเข้า "+rows.length+" รายการ…","warn");
