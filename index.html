@@ -313,6 +313,7 @@ nav a .dot{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;bor
     <div class="toolbar">
       <div><label class="lbl" for="stockQ">ค้นหา</label><input id="stockQ" placeholder="ชื่อ / รหัส"></div>
       <div><span class="lbl">หมวด</span><div class="seg" id="stockCat"><button data-c="all" aria-pressed="true">ทั้งหมด</button><button data-c="drug" aria-pressed="false">ยา/เวชภัณฑ์</button><button data-c="supply" aria-pressed="false">พัสดุสิ้นเปลือง</button></div></div>
+      <div><span class="lbl">สถานะ</span><div class="seg" id="stockSt"></div></div>
       <div style="margin-left:auto"><span class="lbl">&nbsp;</span><button class="btn" id="dlStock">ดาวน์โหลดคงคลัง (.xlsx)</button></div>
     </div>
     <div class="stats" id="stockVal"></div>
@@ -791,15 +792,22 @@ $("#dlExpiry").onclick=()=>withExcel($("#dlExpiry"),"#expMsg",wb=>{
 let stockCat="all";
 $("#stockCat").addEventListener("click",e=>{const b=e.target.closest("[data-c]");if(!b)return;stockCat=b.dataset.c;$$("#stockCat button").forEach(x=>x.setAttribute("aria-pressed",x===b));renderStock()});
 $("#stockQ").addEventListener("input",renderStock);
+// กรองตามสถานะ: ต้องสั่ง = หมด + ใกล้หมด
+const ST_OPT=[["all","ทั้งหมด"],["need","ต้องสั่งซื้อ"],["out","หมด"],["low","ใกล้หมด"],["ok","ปกติ"]];let stockSt="all";
+function stOf(i){const s=i.stock||0;return s<=0?"out":i.min&&s<i.min?"low":"ok"}
+const stMatch=(i,f)=>f==="all"||(f==="need"?stOf(i)!=="ok":stOf(i)===f);
+$("#stockSt").addEventListener("click",e=>{const b=e.target.closest("[data-st]");if(!b)return;stockSt=b.dataset.st;renderStock()});
+function stockList(){const q=$("#stockQ").value.trim().toLowerCase();return sortedItems(stockCat).filter(i=>(!q||(i.name+" "+i.code).toLowerCase().includes(q))&&stMatch(i,stockSt))}
 function sortedItems(cat){return [...S.items.values()].filter(i=>cat==="all"||i.cat===cat).sort((a,b)=>a.cat===b.cat?a.name.localeCompare(b.name,"th"):a.cat==="drug"?-1:1)}
 function status(i){const s=i.stock||0;if(s<=0)return'<span class="tag out">หมด</span>';if(i.min&&s<i.min)return'<span class="tag low">ใกล้หมด</span>';return'<span class="note">ปกติ</span>'}
 function renderStock(){
-  const q=$("#stockQ").value.trim().toLowerCase();
-  const list=sortedItems(stockCat).filter(i=>!q||(i.name+" "+i.code).toLowerCase().includes(q));
+  const q=$("#stockQ").value.trim().toLowerCase(),base=sortedItems(stockCat).filter(i=>!q||(i.name+" "+i.code).toLowerCase().includes(q));
+  $("#stockSt").innerHTML=ST_OPT.map(([k,t])=>`<button data-st="${k}" aria-pressed="${stockSt===k}">${t} <span class="note">${base.filter(i=>stMatch(i,k)).length}</span></button>`).join("");
+  const list=base.filter(i=>stMatch(i,stockSt));
   const all=[...S.items.values()],val=c=>all.filter(i=>(c==="all"||i.cat===c)&&i.cost!=null).reduce((a,i)=>a+(i.stock||0)*i.cost,0),noc=all.filter(i=>i.cost==null).length;
   $("#stockVal").innerHTML=`<div class="stat"><span>มูลค่าคงเหลือรวม</span><b>${baht(val("all"))}</b><span>บาท</span></div><div class="stat"><span>ยา/เวชภัณฑ์</span><b>${baht(val("drug"))}</b><span>บาท</span></div><div class="stat"><span>พัสดุสิ้นเปลือง</span><b>${baht(val("supply"))}</b><span>บาท</span></div>`+(noc?`<div class="stat"><span>ยังไม่มีราคาต้นทุน</span><b>${noc}</b><span>รายการ (ไม่รวมในมูลค่า)</span></div>`:"");
   $("#stockBody").innerHTML=list.length?list.map(i=>`<tr><td class="code">${esc(i.code)}</td><td>${esc(i.name)}</td><td><span class="tag ${i.cat}">${CAT[i.cat]}</span></td><td class="n">${fmt(i.stock)}</td><td>${esc(i.unit)}</td><td class="n">${baht(i.cost)}</td><td class="n">${i.cost==null?"–":baht((i.stock||0)*i.cost)}</td><td class="n">${i.min?fmt(i.min):"–"}</td><td>${status(i)}</td></tr>`).join("")
-    :`<tr><td colspan="9" class="emptyline">${S.items.size?"ไม่พบรายการที่ค้นหา":'ยังไม่มีรายการ <a href="#items">ไปที่ทะเบียนยา</a>'}</td></tr>`;
+    :`<tr><td colspan="9" class="emptyline">${S.items.size?(stockSt!=="all"?"ไม่มีรายการในสถานะนี้":"ไม่พบรายการที่ค้นหา"):'ยังไม่มีรายการ <a href="#items">ไปที่ทะเบียนยา</a>'}</td></tr>`;
 }
 
 /* ---------- summary ---------- */
@@ -981,15 +989,16 @@ async function dlDoc(){
 $("#dlDoc").onclick=dlDoc;
 $("#dlStock").onclick=()=>withExcel($("#dlStock"),"#banner",wb=>{
   const ws=wb.addWorksheet("คงคลัง");
-  ws.addRow(["ยอดคงคลัง ณ วันที่ "+new Date().toLocaleDateString("th-TH",{dateStyle:"long"})]).font={name:FONT,size:16,bold:true};
-  styleHead(ws.addRow(["รหัส","รายการ","หมวด","คงเหลือ","หน่วย","ต้นทุน/หน่วย","มูลค่าคงเหลือ","จุดสั่งซื้อ"]));
-  const list=sortedItems("all"),first=ws.rowCount+1;
-  list.forEach(i=>{const r=ws.addRow([i.code,i.name,CAT[i.cat],i.stock||0,i.unit,i.cost,null,i.min||null]);r.font={name:FONT,size:14};
+  const stT={all:"",need:" · เฉพาะที่ต้องสั่งซื้อ",out:" · เฉพาะที่หมด",low:" · เฉพาะที่ใกล้หมด",ok:" · เฉพาะสถานะปกติ"}[stockSt],catT=stockCat==="all"?"":" · "+CAT[stockCat];
+  ws.addRow(["ยอดคงคลัง ณ วันที่ "+new Date().toLocaleDateString("th-TH",{dateStyle:"long"})+catT+stT]).font={name:FONT,size:16,bold:true};
+  styleHead(ws.addRow(["รหัส","รายการ","หมวด","คงเหลือ","หน่วย","ต้นทุน/หน่วย","มูลค่าคงเหลือ","จุดสั่งซื้อ","สถานะ"]));
+  const list=stockList(),first=ws.rowCount+1,stTh={out:"หมด",low:"ใกล้หมด",ok:"ปกติ"};
+  list.forEach(i=>{const r=ws.addRow([i.code,i.name,CAT[i.cat],i.stock||0,i.unit,i.cost,null,i.min||null,stTh[stOf(i)]]);r.font={name:FONT,size:14};
     if(i.cost!=null)r.getCell(7).value={formula:`D${r.number}*F${r.number}`,result:(i.stock||0)*i.cost}});
-  const last=ws.rowCount,tot=ws.addRow(["","มูลค่าคงเหลือรวม","","","","",{formula:`SUM(G${first}:G${last})`,result:stockValue()}]);tot.font={name:FONT,size:14,bold:true};
-  ws.columns=[{width:12},{width:38},{width:16},{width:10},{width:10},{width:13},{width:15},{width:11}];
+  const last=ws.rowCount,tot=ws.addRow(["","มูลค่าคงเหลือรวม","","","","",{formula:`SUM(G${first}:G${last})`,result:list.reduce((a,i)=>a+(i.cost==null?0:(i.stock||0)*i.cost),0)}]);tot.font={name:FONT,size:14,bold:true};
+  ws.columns=[{width:12},{width:38},{width:16},{width:10},{width:10},{width:13},{width:15},{width:11},{width:10}];
   ws.getColumn(6).numFmt="#,##0.00";ws.getColumn(7).numFmt="#,##0.00";
-  return `stock_${todayStr()}.xlsx`});
+  return `stock_${todayStr()}${stockSt==="all"?"":"_"+stockSt}.xlsx`});
 
 /* ---------- items ---------- */
 let itemCat="all";const qrSel=new Set();
