@@ -257,8 +257,14 @@ nav a .dot{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;bor
           </div>
           <div style="margin-top:12px"><span class="lbl">สถานที่ใช้งาน (ถ้ามี)</span><div class="chips" id="dispLocChips"></div></div>
         </div>
+        <div id="countXl" class="row" style="gap:8px;flex-wrap:wrap" hidden>
+          <span class="lbl" style="width:100%;margin:0">ตรวจนับด้วย Excel: ดาวน์โหลดใบนับ กรอกยอดนับได้ แล้วอัปโหลดกลับ</span>
+          <button type="button" class="btn" id="cxDl">ดาวน์โหลดใบนับ (.xlsx)</button>
+          <button type="button" class="btn" id="cxUp">อัปโหลดผลนับ</button>
+          <input type="file" id="cxFile" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+        </div>
         <div id="locBlock">
-          <span class="lbl">สถานที่ใช้งาน (ใช้กับยา/เวชภัณฑ์)</span>
+          <span class="lbl">สถานที่ใช้งาน (ใช้กับยา/เวชภัณฑ์)<span id="locDef" class="note"></span></span>
           <div class="chips" id="locChips"></div>
         </div>
         <div class="f2">
@@ -358,6 +364,7 @@ nav a .dot{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;bor
       <div><h2>ทะเบียนเวชภัณฑ์</h2><p class="sub" style="margin:0" id="itemsSub">เพิ่ม แก้ไข และทำป้าย QR สำหรับติดชั้นวางหรือกล่องยา</p></div>
       <div class="row">
         <button class="btn adm" id="bulkBtn">นำเข้าหลายรายการ</button>
+        <button class="btn adm" id="xlEditBtn">แก้ไขด้วย Excel</button>
         <button class="btn" id="dlRegister">ดาวน์โหลดทะเบียนยา (.xlsx)</button>
         <button class="btn" id="labelsBtn" disabled>ดาวน์โหลดป้าย QR</button>
         <button class="btn primary adm" id="addItemBtn">+ เพิ่มรายการ</button>
@@ -407,6 +414,20 @@ nav a .dot{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;bor
   <div class="df"><button class="btn danger" id="iDel" hidden>ลบรายการ</button><span style="flex:1"></span><button class="btn" data-close>ยกเลิก</button><button class="btn primary" id="iSave">บันทึก</button></div>
 </dialog>
 
+<dialog id="xlEditDlg" style="width:min(760px,calc(100vw - 32px))">
+  <div class="dh"><h3>แก้ไขทะเบียนยาหลายรายการด้วย Excel</h3><button class="btn ghost" data-close>ปิด</button></div>
+  <div class="db">
+    <ol class="note" style="margin:0;padding-left:20px;line-height:1.7">
+      <li>ดาวน์โหลดไฟล์ทะเบียนยาปัจจุบัน <button class="btn" id="xeDl" style="margin-left:6px">ดาวน์โหลดไฟล์แก้ไข (.xlsx)</button></li>
+      <li>แก้ชื่อ หมวด หน่วย จุดสั่งซื้อ ราคาต้นทุน หรือบาร์โค้ดใน Excel เพิ่มรายการใหม่ที่ท้ายตารางได้ (เว้น id ว่าง) แล้วบันทึกไฟล์</li>
+      <li>เลือกไฟล์ที่แก้แล้ว ตรวจรายการที่จะเปลี่ยน แล้วกดบันทึก <input type="file" id="xeFile" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="margin-top:6px"></li>
+    </ol>
+    <div id="xeBody"></div>
+    <div id="xeMsg" hidden></div>
+  </div>
+  <div class="df"><button class="btn" data-close>ปิด</button><button class="btn primary" id="xeSave" disabled>บันทึก</button></div>
+</dialog>
+
 <dialog id="bulkDlg">
   <div class="dh"><h3>นำเข้าหลายรายการ</h3><button class="btn ghost" data-close>ปิด</button></div>
   <div class="db">
@@ -453,7 +474,9 @@ async function api(action,data={}){
   return j;
 }
 function setItems(list){S.items=new Map(list.map(i=>[i.id,i]))}
-async function loadInit(){const j=await api("init");S.user=j.user;S.locs=j.locs;setItems(j.items)}
+async function loadInit(){const j=await api("init");const first=!S.user||S.user.name!==j.user.name;S.user=j.user;S.locs=j.locs;setItems(j.items);
+  // สถานที่ใช้งานเริ่มต้นของผู้ใช้ (ตั้งในแผ่นงาน "ผู้ใช้" คอลัมน์ สถานที่เริ่มต้น)
+  if(first)S.loc=j.user.loc&&S.locs.some(l=>l.id===j.user.loc)?j.user.loc:null}
 let txnReq=0;
 async function loadTxns(){const my=++txnReq;const j=await api("txns",{month:S.month});if(my===txnReq){S.txns=j.txns;renderAll()}}
 async function refresh(){try{await loadInit();await loadTxns();$("#banner").hidden=true}catch(e){showBanner(esc(e.message),"err")}}
@@ -487,10 +510,10 @@ const VIEWS=[
   {id:"in",t:"รับเข้า",i:ICON.in,mob:1},
   {id:"expiry",t:"ใกล้หมดอายุ",i:'<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/>',mob:1},
   {id:"stock",t:"คงคลัง",i:'<path d="M3 7l9-4 9 4-9 4-9-4zM3 7v10l9 4 9-4V7M12 11v10"/>',mob:1},
-  {id:"summary",t:"สรุปการใช้",i:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'},
-  {id:"items",t:"ทะเบียนยา",i:'<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>'},
+  {id:"summary",t:"สรุปการใช้",i:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',adm:1},
+  {id:"items",t:"ทะเบียนยา",i:'<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',adm:1},
   {id:"adjust",t:"ตรวจนับ/ทิ้ง",i:ICON.adj,adm:1},
-  {id:"report",t:"รายงาน",i:'<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8M8 17h8"/>'},
+  {id:"report",t:"รายงาน",i:'<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8M8 17h8"/>',adm:1},
 ];
 const FORMVIEW={out:"out",in:"in",adjust:"adjust"};
 function renderNav(){
@@ -498,11 +521,11 @@ function renderNav(){
   $("#tabsDesk").innerHTML=vis.map(v=>`<a href="#${v.id}" data-v="${v.id}">${v.t}${dot(v)}</a>`).join("");
   const svg=i=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${i}</svg>`;
   $("#tabsMob").innerHTML=vis.filter(v=>v.mob).map(v=>`<a href="#${v.id}" data-v="${v.id}">${svg(v.i)}${v.t}${dot(v)}</a>`).join("")
-    +`<a href="#" id="moreBtn" data-v="more">${svg('<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>')}เพิ่มเติม</a>`;
+    +`<a href="#" id="moreBtn" data-v="more"${vis.some(v=>!v.mob)?"":" hidden"}>${svg('<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>')}เพิ่มเติม</a>`;
   $("#moreMenu").innerHTML=vis.filter(v=>!v.mob).map(v=>`<a href="#${v.id}">${v.t}</a>`).join("");
   markNav();
 }
-function curView(){let v=(location.hash||"#out").slice(1);if(v==="issue")v="out";if(v==="adjust"&&!isAdmin())v="out";return VIEWS.some(x=>x.id===v)?v:"out"}
+function curView(){let v=(location.hash||"#out").slice(1);if(v==="issue")v="out";const V=VIEWS.find(x=>x.id===v);return V&&(!V.adm||isAdmin())?v:"out"}
 function markNav(){const view=curView(),inMore=!VIEWS.find(x=>x.id===view).mob;
   $$("nav a[data-v]").forEach(a=>{if(a.dataset.v===view||(a.dataset.v==="more"&&inMore))a.setAttribute("aria-current","page");else a.removeAttribute("aria-current")})}
 function route(){
@@ -520,7 +543,7 @@ document.addEventListener("click",e=>{if(e.target.closest("#moreBtn")){e.prevent
 /* ---------- issue form ---------- */
 $("#date").value=todayStr();$("#month").value=S.month;
 $("#month").addEventListener("change",e=>{if(!e.target.value)return;S.month=e.target.value;$("#repMonth").value=S.month;S.txns=[];renderAll();loadTxns().catch(err=>showBanner(esc(err.message),"err"))});
-function renderLocChips(){$("#locChips").innerHTML=S.locs.map(l=>`<button type="button" class="chip" data-l="${esc(l.id)}" aria-pressed="${S.loc===l.id}">${esc(l.label)}${l.sub&&l.sub!==l.label?`<small>${esc(l.sub)}</small>`:""}</button>`).join("")}
+function renderLocChips(){const dl=S.user&&S.user.loc&&S.locs.find(l=>l.id===S.user.loc);$("#locDef").textContent=dl?" · ค่าเริ่มต้นของคุณ: "+dl.label:"";$("#locChips").innerHTML=S.locs.map(l=>`<button type="button" class="chip" data-l="${esc(l.id)}" aria-pressed="${S.loc===l.id}">${esc(l.label)}${l.sub&&l.sub!==l.label?`<small>${esc(l.sub)}</small>`:""}</button>`).join("")}
 $("#locChips").addEventListener("click",e=>{const b=e.target.closest("[data-l]");if(!b)return;S.loc=b.dataset.l;renderLocChips();hideMsg("#formMsg")});
 const MODE={
   out:{title:"เบิกออกจากคลัง",btn:"บันทึกการเบิก",note:"หมายเหตุ",ph:"เช่น งานออกพื้นที่"},
@@ -530,7 +553,7 @@ const MODE={
 const MARKUP=Number(CFG.DISPOSE_MARKUP)||0,MARKUP_LBL="ต้นทุน+"+Math.round(MARKUP*100)+"%";
 const dispCost=c=>c==null?null:Math.round(c*(1+MARKUP)*100)/100;
 const HINT={out:"ตัดยอดออกจากคลังไปใช้งาน เลือกทะเบียนรถหรือสถานที่ก่อนบันทึก",in:"เพิ่มยอดเข้าคลัง ใส่ Lot และวันหมดอายุ (EXP) ทุกครั้งเพื่อใช้แจ้งเตือนยาใกล้หมดอายุ",
-  count:"ใส่จำนวนที่นับได้จริง ระบบบันทึกเฉพาะส่วนต่าง",dispose:"ตัดยาเสื่อมสภาพหรือหมดอายุออกจากคลัง ไม่นับเป็นการใช้งาน"};
+  count:"ใส่จำนวนที่นับได้จริง หรือใช้ใบนับ Excel ระบบปรับยอดตามส่วนต่าง",dispose:"ตัดยาเสื่อมสภาพหรือหมดอายุออกจากคลัง ไม่นับเป็นการใช้งาน"};
 function setMode(m){
   if((m==="count"||m==="dispose")&&!isAdmin())m="out";
   S.mode=m;if(m==="count"||m==="dispose")S.adjMode=m;
@@ -540,7 +563,7 @@ function setMode(m){
   $("#adjSeg").hidden=!(m==="count"||m==="dispose");
   $("#histTitle").textContent=m==="out"?"เบิกออกเดือนนี้":m==="in"?"รับเข้าเดือนนี้":"ตรวจนับ/ทิ้งเดือนนี้";
   $("#formTitle").textContent=MODE[m].title;$("#submit").textContent=MODE[m].btn;hideMsg("#formMsg");if(S.user)renderDispExtras();
-  $("#locBlock").hidden=m!=="out";$("#reasonBlock").hidden=m!=="dispose";$("#noteLbl").textContent=MODE[m].note;$("#note").placeholder=MODE[m].ph;
+  $("#locBlock").hidden=m!=="out";$("#countXl").hidden=m!=="count";$("#reasonBlock").hidden=m!=="dispose";$("#noteLbl").textContent=MODE[m].note;$("#note").placeholder=MODE[m].ph;
   $("#dispNote").textContent="ตัดออกจากยอดคงคลัง ไม่นับเป็นการใช้งาน มูลค่าคิดที่ราคา"+MARKUP_LBL;
   renderLines();if(S.user)renderHist();
 }
@@ -1262,6 +1285,146 @@ function xlRegister(all){
   return {name:`drug-register_${isoLocal(new Date())}.xlsx`,blob:b.blob()};
 }
 function xlDownload(btn,msgSel,build){try{btn.disabled=true;const {name,blob}=build();saveBlob(name,blob);flash(msgSel,"ดาวน์โหลด "+name+" แล้ว","ok")}catch(e){flash(msgSel,"สร้างไฟล์ไม่สำเร็จ: "+(e.message||e),"err")}btn.disabled=false}
+/* ---------- ตัวอ่านไฟล์ Excel (.xlsx) ในตัว: ใช้ DecompressionStream ของเบราว์เซอร์ ไม่ต้องโหลดไลบรารี ---------- */
+const XLSX_READ=(()=>{
+  const dec=new TextDecoder();
+  async function inflate(u8){if(typeof DecompressionStream==="undefined")throw new Error("เบราว์เซอร์นี้อ่านไฟล์ Excel ไม่ได้ กรุณาใช้ Chrome, Edge หรือ Safari รุ่นใหม่");
+    return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer())}
+  function unzip(buf){const u=new Uint8Array(buf),dv=new DataView(buf);let e=u.length-22;while(e>=0&&dv.getUint32(e,true)!==0x06054b50)e--;
+    if(e<0)throw new Error("ไฟล์นี้ไม่ใช่ Excel (.xlsx) ถ้าเป็น .xls ให้เปิดใน Excel แล้วบันทึกเป็น .xlsx ก่อน");
+    const n=dv.getUint16(e+10,true),files={};let p=dv.getUint32(e+16,true);
+    for(let i=0;i<n&&dv.getUint32(p,true)===0x02014b50;i++){const nl=dv.getUint16(p+28,true),xl=dv.getUint16(p+30,true),cl=dv.getUint16(p+32,true);
+      files[dec.decode(u.subarray(p+46,p+46+nl))]={m:dv.getUint16(p+10,true),cs:dv.getUint32(p+20,true),off:dv.getUint32(p+42,true)};p+=46+nl+xl+cl}
+    return async name=>{const f=files[name];if(!f)return null;const st=f.off+30+dv.getUint16(f.off+26,true)+dv.getUint16(f.off+28,true),d=u.subarray(st,st+f.cs);
+      return dec.decode(f.m===8?await inflate(d):d)}}
+  const xml=s=>new DOMParser().parseFromString(s,"application/xml"),tags=(n,t)=>[...n.getElementsByTagName(t)];
+  const colIdx=ref=>{let c=0;for(const ch of String(ref).replace(/[^A-Z]/gi,"").toUpperCase())c=c*26+ch.charCodeAt(0)-64;return c-1};
+  async function read(buf){
+    const get=unzip(buf),wbx=await get("xl/workbook.xml");if(!wbx)throw new Error("อ่านไฟล์ Excel ไม่ได้");
+    const rel={};tags(xml(await get("xl/_rels/workbook.xml.rels")||"<r/>"),"Relationship").forEach(r=>rel[r.getAttribute("Id")]=r.getAttribute("Target"));
+    const ssx=await get("xl/sharedStrings.xml"),ss=ssx?tags(xml(ssx),"si").map(si=>tags(si,"t").filter(t=>!t.closest("rPh")).map(t=>t.textContent).join("")):[];
+    const out=[];
+    for(const s of tags(xml(wbx),"sheet")){
+      const rid=s.getAttribute("r:id")||s.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships","id");
+      let t=rel[rid]||"";t=t.startsWith("/")?t.slice(1):"xl/"+t.replace(/^\.\//,"");
+      const sx=await get(t);if(!sx)continue;const rows=[];
+      tags(xml(sx),"row").forEach(r=>{const ri=r.getAttribute("r")?+r.getAttribute("r")-1:rows.length,row=rows[ri]=[];let ci=0;
+        tags(r,"c").forEach(c=>{const ty=c.getAttribute("t"),v=c.getElementsByTagName("v")[0];ci=c.getAttribute("r")?colIdx(c.getAttribute("r")):ci;let val="";
+          if(ty==="s")val=v?ss[+v.textContent]??"":"";else if(ty==="inlineStr")val=tags(c,"t").map(x=>x.textContent).join("");
+          else if(v)val=ty==="str"||ty==="e"?v.textContent:ty==="b"?v.textContent==="1":Number(v.textContent);
+          row[ci++]=val})});
+      out.push({name:s.getAttribute("name"),rows})}
+    return out}
+  /** หาแถวหัวตารางที่มีคำว่า key แล้วแปลงแถวถัดไปเป็นออบเจกต์ตามชื่อหัวคอลัมน์ */
+  function table(sheets,key){for(const sh of sheets)for(let i=0;i<Math.min(sh.rows.length,15);i++){const h=sh.rows[i]||[];
+      if(h.some(x=>String(x??"").trim()===key)){const head=h.map(x=>String(x??"").trim());
+        return sh.rows.slice(i+1).map((r,k)=>({_row:i+k+2,get:name=>{const j=head.findIndex(x=>x===name||x.startsWith(name));return j<0||!r?"":r[j]??""}})).filter(o=>o.get(key)!==""||o.get(head[2]||key)!=="")}}
+    return null}
+  return {read,table};
+})();
+/* ---------- v1.6: แก้ไขทะเบียนยาหลายรายการ และตรวจนับด้วย Excel ---------- */
+const XS={font:{name:"TH SarabunPSK",sz:16},align:{v:"center"}},xb=(st,extra)=>Object.assign({},st,extra);
+const XH={font:{name:"TH SarabunPSK",sz:16,b:true},fill:"DCEBE6",border:{l:"thin",r:"thin",t:"thin",b:"thin"},align:{h:"center",wrap:true}};
+const XC={font:{name:"TH SarabunPSK",sz:16},border:{l:"thin",r:"thin",t:"thin",b:"thin"}},XLOCK=xb(XC,{fill:"EEEEEE",font:{name:"TH SarabunPSK",sz:14,color:"555555"}});
+const XIN=xb(XC,{fill:"FFF6CC"}),txtCell=v=>v==null?"":String(v);
+const catTh=c=>c==="supply"?"พัสดุ":"ยา",catIn=v=>{v=String(v||"").trim();return !v?null:/พัสดุ|supply/i.test(v)?"supply":/ยา|drug|เวชภัณฑ์/i.test(v)?"drug":"?"};
+const readFile=f=>new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=()=>no(new Error("อ่านไฟล์ไม่ได้"));r.readAsArrayBuffer(f)});
+const numIn=v=>{if(v===""||v==null)return null;const n=typeof v==="number"?v:parseFloat(String(v).replace(/,/g,""));return isNaN(n)?NaN:n};
+const sortedAll=()=>[...S.items.values()].sort((a,b)=>a.cat.localeCompare(b.cat)||a.code.localeCompare(b.code,"th",{numeric:true}));
+
+// 1) ไฟล์แก้ไขทะเบียนยา
+function xlEditTemplate(){
+  const b=new XLSX_MINI.Book(),s=b.sheet("แก้ไขทะเบียนยา"),H=["id","รหัส","ชื่อรายการ","หมวด","หน่วย","จุดสั่งซื้อ","ราคาต้นทุน","บาร์โค้ดผู้ผลิต","คงเหลือ"];
+  s.cols=[13,9,46,9,10,11,13,20,11];s.landscape=true;
+  s.merge(0,0,0,8,"แก้ไขทะเบียนยา (ดาวน์โหลดเมื่อ "+thDate(todayStr())+")",{font:{name:"TH SarabunPSK",sz:20,b:true}});
+  s.merge(1,0,1,8,"แก้ได้ในช่องสีขาว: ชื่อรายการ หมวด (ยา/พัสดุ) หน่วย จุดสั่งซื้อ ราคาต้นทุน บาร์โค้ด · ห้ามแก้ช่องสีเทา (id รหัส คงเหลือ) · เพิ่มรายการใหม่ที่ท้ายตารางโดยเว้น id ว่าง (ช่องคงเหลือ = ยอดยกมา) · แก้เสร็จแล้วอัปโหลดในแอป: ทะเบียนยา › แก้ไขด้วย Excel",
+    {font:{name:"TH SarabunPSK",sz:14,color:"7A2E0E"},align:{wrap:true}});s.height(1,42);
+  H.forEach((h,c)=>s.set(2,c,h,XH));s.height(2,24);
+  sortedAll().forEach((it,k)=>{const r=3+k;
+    [[it.id,XLOCK],[it.code,XLOCK],[it.name,XC],[catTh(it.cat),xb(XC,{align:{h:"center"}})],[it.unit,XC],[it.min||0,XC],[it.cost==null?"":it.cost,xb(XC,{numFmt:"#,##0.00"})],[txtCell(it.barcode),XC],[it.stock,xb(XLOCK,{numFmt:"#,##0.##"})]]
+      .forEach(([v,st],c)=>s.set(r,c,v,st))});
+  for(let k=0;k<20;k++){const r=3+S.items.size+k;for(let c=0;c<9;c++)s.set(r,c,"",c<2?XLOCK:XC)}
+  s.freeze=3;s.titleRows=[2,2];
+  return {name:`drug-register-edit_${todayStr().replace(/-/g,"")}.xlsx`,blob:b.blob()};
+}
+let editPlan=null;
+function planEdit(rows){
+  const upd=[],add=[],err=[],seen=new Set();
+  rows.forEach(o=>{const id=String(o.get("id")).trim(),name=String(o.get("ชื่อรายการ")).trim(),row=o._row;
+    const cat=catIn(o.get("หมวด")),unit=String(o.get("หน่วย")).trim(),min=numIn(o.get("จุดสั่งซื้อ")),cost=numIn(o.get("ราคาต้นทุน")),bar=String(o.get("บาร์โค้ด")).trim();
+    if(!id&&!name)return;
+    if(cat==="?")return err.push(`แถว ${row}: หมวดต้องเป็น "ยา" หรือ "พัสดุ"`);
+    if(Number.isNaN(min)||Number.isNaN(cost)||(cost!=null&&cost<0)||(min!=null&&min<0))return err.push(`แถว ${row}: จุดสั่งซื้อ/ราคาต้นทุนต้องเป็นตัวเลขไม่ติดลบ`);
+    if(!id){const stock=numIn(o.get("คงเหลือ"));
+      if([...S.items.values()].some(i=>i.name.trim()===name))return err.push(`แถว ${row}: "${name}" มีในทะเบียนแล้ว (ถ้าจะแก้ ให้แก้ที่แถวเดิม)`);
+      return add.push({name,unit,cat:cat||"drug",min:min||0,cost:cost??"",barcode:bar,stock:Number.isNaN(stock)||stock==null?0:Math.max(0,stock)})}
+    const it=S.items.get(id);if(!it)return err.push(`แถว ${row}: ไม่พบ id ${id} ในทะเบียน (อาจถูกลบไปแล้ว)`);
+    if(seen.has(id))return err.push(`แถว ${row}: ${it.name} ซ้ำในไฟล์`);seen.add(id);
+    if(!name)return err.push(`แถว ${row}: ชื่อรายการว่าง`);
+    const next={id,name,cat:cat||it.cat,unit,min:min??0,cost:cost??null,barcode:bar},ch=[];
+    if(next.name!==it.name)ch.push(["ชื่อ",it.name,next.name]);if(next.cat!==it.cat)ch.push(["หมวด",catTh(it.cat),catTh(next.cat)]);
+    if(next.unit!==it.unit)ch.push(["หน่วย",it.unit,next.unit]);if(+next.min!==+(it.min||0))ch.push(["จุดสั่งซื้อ",fmt(it.min),fmt(next.min)]);
+    if((next.cost??null)!==(it.cost??null))ch.push(["ราคาต้นทุน",baht(it.cost),baht(next.cost)]);if(next.barcode!==String(it.barcode||""))ch.push(["บาร์โค้ด",it.barcode||"–",next.barcode||"–"]);
+    if(ch.length)upd.push({next,it,ch})});
+  return {upd,add,err};
+}
+function renderEditPlan(){const p=editPlan,el=$("#xeBody");
+  if(!p){el.innerHTML="";$("#xeSave").disabled=true;return}
+  el.innerHTML=`<p style="margin:0"><b>แก้ไข ${p.upd.length} รายการ</b> · <b>เพิ่มใหม่ ${p.add.length} รายการ</b>${p.err.length?` · <span style="color:var(--danger,#b42318)">ข้าม ${p.err.length} แถว</span>`:""}</p>`
+    +(p.err.length?`<div class="msg err" style="max-height:120px;overflow:auto">${p.err.map(esc).join("<br>")}</div>`:"")
+    +(p.upd.length||p.add.length?`<div class="tblwrap" style="max-height:300px;overflow:auto"><table><thead><tr><th>รายการ</th><th>เปลี่ยน</th></tr></thead><tbody>`
+      +p.upd.map(u=>`<tr><td>${esc(u.it.code)} ${esc(u.it.name)}</td><td>${u.ch.map(c=>`${esc(c[0])}: <s>${esc(c[1])}</s> → <b>${esc(c[2])}</b>`).join("<br>")}</td></tr>`).join("")
+      +p.add.map(a=>`<tr><td><span class="tag in">ใหม่</span> ${esc(a.name)}</td><td>${esc(catTh(a.cat))} · ${esc(a.unit)} · ยกมา ${fmt(a.stock)} · ต้นทุน ${baht(a.cost===""?null:a.cost)}</td></tr>`).join("")+`</tbody></table></div>`
+      :`<p class="note" style="margin:0">ไม่มีอะไรเปลี่ยนจากทะเบียนในระบบ</p>`);
+  $("#xeSave").disabled=!(p.upd.length||p.add.length);$("#xeSave").textContent=`บันทึก (${p.upd.length+p.add.length} รายการ)`}
+$("#xlEditBtn").onclick=()=>{editPlan=null;$("#xeFile").value="";hideMsg("#xeMsg");renderEditPlan();$("#xlEditDlg").showModal()};
+$("#xeDl").onclick=()=>xlDownload($("#xeDl"),"#xeMsg",xlEditTemplate);
+$("#xeFile").onchange=async e=>{const f=e.target.files[0];if(!f)return;editPlan=null;renderEditPlan();
+  try{const rows=XLSX_READ.table(await XLSX_READ.read(await readFile(f)),"id");
+    if(!rows)throw new Error('ไม่พบหัวตาราง "id" ในไฟล์ ใช้ไฟล์ที่ดาวน์โหลดจากปุ่มข้อ 1');
+    setItems((await api("init")).items);editPlan=planEdit(rows);hideMsg("#xeMsg");renderEditPlan()}
+  catch(err){flash("#xeMsg",err.message||String(err),"err")}};
+$("#xeSave").onclick=async()=>{const p=editPlan;if(!p)return;$("#xeSave").disabled=true;flash("#xeMsg","กำลังบันทึก…","warn");
+  try{let j,msg=[];
+    if(p.upd.length){j=await api("updateItems",{rows:p.upd.map(u=>u.next)});setItems(j.items);msg.push("แก้ไข "+j.updated+" รายการ")}
+    if(p.add.length){j=await api("bulkItems",{rows:p.add});setItems(j.items);msg.push("เพิ่มใหม่ "+j.added+" รายการ")}
+    editPlan=null;renderEditPlan();renderAll();flash("#xeMsg",msg.join(" · ")+" แล้ว","ok");$("#xeFile").value=""}
+  catch(err){flash("#xeMsg",err.message,"err");$("#xeSave").disabled=false}};
+
+// 2) ใบตรวจนับ Excel (กรอกยอดนับแล้วอัปโหลดกลับ)
+function xlCountTemplate(){
+  const b=new XLSX_MINI.Book(),s=b.sheet("ใบตรวจนับ"),H=["id","รหัส","รายการ","หมวด","หน่วย","ยอดในระบบ","ยอดนับได้","หมายเหตุ"];
+  s.cols=[13,9,46,9,10,12,13,24];s.landscape=false;
+  s.merge(0,0,0,7,"ใบตรวจนับคลังยา (ยอดในระบบ ณ "+thDate(todayStr())+" "+new Date().toTimeString().slice(0,5)+" น.)",{font:{name:"TH SarabunPSK",sz:20,b:true}});
+  s.merge(1,0,1,7,"กรอกจำนวนที่นับได้จริงในช่องสีเหลือง \"ยอดนับได้\" แถวที่เว้นว่างจะไม่ถูกบันทึก · ห้ามแก้ช่อง id · นับเสร็จแล้วอัปโหลดในแอป: ตรวจนับ/ทิ้ง › ตรวจนับ › อัปโหลดผลนับ",
+    {font:{name:"TH SarabunPSK",sz:14,color:"7A2E0E"},align:{wrap:true}});s.height(1,42);
+  H.forEach((h,c)=>s.set(2,c,h,XH));s.height(2,24);
+  sortedAll().forEach((it,k)=>{const r=3+k;
+    [[it.id,XLOCK],[it.code,XLOCK],[it.name,XC],[catTh(it.cat),xb(XC,{align:{h:"center"}})],[it.unit,XC],[it.stock,xb(XLOCK,{numFmt:"#,##0.##"})],["",XIN],["",XC]].forEach(([v,st],c)=>s.set(r,c,v,st))});
+  s.freeze=3;s.titleRows=[2,2];s.footer='&R&"TH SarabunPSK"&12หน้า &P/&N';
+  s.set(4+S.items.size,2,"ผู้ตรวจนับ ......................................  วันที่ ...........................",XS);
+  return {name:`count-sheet_${todayStr().replace(/-/g,"")}.xlsx`,blob:b.blob()};
+}
+$("#cxDl").onclick=()=>xlDownload($("#cxDl"),"#formMsg",xlCountTemplate);
+$("#cxUp").onclick=()=>{$("#cxFile").value="";$("#cxFile").click()};
+$("#cxFile").onchange=async e=>{const f=e.target.files[0];if(!f)return;
+  try{const rows=XLSX_READ.table(await XLSX_READ.read(await readFile(f)),"id");
+    if(!rows)throw new Error('ไม่พบหัวตาราง "id" ในไฟล์ ใช้ไฟล์จากปุ่ม "ดาวน์โหลดใบนับ"');
+    flash("#formMsg","กำลังอ่านไฟล์และโหลดยอดล่าสุด…","warn");setItems((await api("init")).items);
+    const got=[],bad=[],moved=[];
+    rows.forEach(o=>{const v=o.get("ยอดนับได้");if(v===""||v==null)return;const id=String(o.get("id")).trim(),it=S.items.get(id),q=numIn(v);
+      if(!it)return bad.push(`แถว ${o._row}: ไม่พบ id ในทะเบียน`);if(q==null||Number.isNaN(q)||q<0)return bad.push(`แถว ${o._row}: ${it.name} ยอดนับต้องเป็นตัวเลขไม่ติดลบ`);
+      const sys=numIn(o.get("ยอดในระบบ"));if(sys!=null&&!Number.isNaN(sys)&&Math.abs(sys-(it.stock||0))>1e-9)moved.push(it.name);
+      got.push({id,qty:q})});
+    if(!got.length)throw new Error(bad.length?bad.join(" · "):'ยังไม่มีแถวที่กรอก "ยอดนับได้"');
+    const off=g=>Math.abs(g.qty-(S.items.get(g.id).stock||0))>1e-9;got.sort((a,b)=>off(b)-off(a)); // รายการที่ไม่ตรงขึ้นก่อน
+    const keep=S.linesBy.count.filter(l=>!got.some(g=>g.id===l.id));S.linesBy.count=[...keep,...got];setMode("count");
+    const diff=got.filter(g=>Math.abs(g.qty-(S.items.get(g.id).stock||0))>1e-9).length;
+    flash("#formMsg",`นำเข้าผลนับ ${got.length} รายการ (ไม่ตรงกับระบบ ${diff} รายการ) ตรวจดูด้านล่างแล้วกด "บันทึกผลตรวจนับ"`
+      +(moved.length?` · ระวัง: ${moved.length} รายการยอดในระบบเปลี่ยนไปหลังดาวน์โหลดใบนับ (มีเบิก/รับระหว่างนับ) เช่น ${moved.slice(0,3).join(", ")}`:"")
+      +(bad.length?` · ข้าม ${bad.length} แถว: ${bad.slice(0,3).join(" · ")}`:"")+" (รายการที่ไม่ตรงอยู่ด้านบนของรายการ)",moved.length||bad.length?"warn":"ok");
+    $("#formMsg").scrollIntoView({block:"center",behavior:"smooth"})}
+  catch(err){flash("#formMsg",err.message||String(err),"err")}};
 $("#dlRegister").onclick=()=>xlDownload($("#dlRegister"),"#banner",()=>xlRegister(false));
 
 /* ---------- render / boot ---------- */
