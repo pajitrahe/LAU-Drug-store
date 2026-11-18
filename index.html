@@ -187,11 +187,14 @@ nav a .dot{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;bor
 .lotrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 .lotrow input{padding:5px 8px;font-size:13px}
 .lotrow input[type=date]{width:150px}.lotrow input.lot{width:110px}
-.lotrow{align-items:center}.lotrow label{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted,#5b6b66)}
-.lotrow input.exp{width:96px;font-family:var(--mono,monospace)}.lotrow input.exp.bad{border-color:#d92d20;background:#fff1f0}
-.expchip{border:1px solid var(--line,#d5ddd9);background:#fff;border-radius:999px;padding:3px 9px;font-size:12px;cursor:pointer;color:inherit}
-.expchip[aria-pressed=true]{background:var(--accent-soft,#e3f1ec);border-color:var(--accent,#1f6f5c);font-weight:600}
-.expchip.add{border-style:dashed}
+.lotrow{align-items:center}.lotrow label{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.lotrow input.exp{width:96px;font-family:var(--f-mono)}.lotrow input.exp.bad{border-color:var(--bad);background:var(--bad-soft)}
+.expchip{border:1px solid var(--line);background:var(--sunk);color:var(--ink);border-radius:999px;padding:5px 11px;font:500 13px/1.2 var(--f-body);cursor:pointer}
+.expchip:hover{border-color:var(--m,var(--accent))}
+.expchip[aria-pressed=true]{background:var(--m-soft,var(--accent-soft));border-color:var(--m,var(--accent));color:var(--ink);font-weight:700}
+.expchip.add{border:1.5px dashed var(--m,var(--accent));background:transparent;color:var(--m,var(--accent));font-weight:600}
+.expchip.add:hover{background:var(--m-soft,var(--accent-soft))}
+.expchip:focus-visible{outline:2px solid var(--m,var(--accent));outline-offset:2px}
 .more{position:fixed;right:max(12px,env(safe-area-inset-right,0px));bottom:calc(64px + env(safe-area-inset-bottom,0px));z-index:8;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.2);display:flex;flex-direction:column;min-width:200px;overflow:hidden}
 .more a{padding:14px 18px;text-decoration:none;color:var(--ink);border-bottom:1px solid var(--line)}
 .more a:last-child{border-bottom:0}
